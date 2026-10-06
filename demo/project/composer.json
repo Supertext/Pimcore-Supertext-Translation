@@ -1,0 +1,57 @@
+{
+    "name": "supertext/pimcore-demo",
+    "type": "project",
+    "license": "proprietary",
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true,
+        "process-timeout": 0,
+        "allow-plugins": {
+            "symfony/runtime": true
+        },
+        "platform": {
+            "php": "8.4.13"
+        }
+    },
+    "prefer-stable": true,
+    "minimum-stability": "dev",
+    "require": {
+        "php": "~8.4.0 || ~8.5.0",
+        "pimcore/pimcore": "^2026.3.0",
+        "pimcore/platform-version": "^2026.3.0",
+        "pimcore/quill-bundle": "*",
+        "pimcore/studio-backend-bundle": "*",
+        "pimcore/studio-ui-bundle": "*",
+        "supertext/pimcore-supertext-translation": "@dev",
+        "symfony/doctrine-messenger": "^7.4",
+        "symfony/dotenv": "^7.4",
+        "symfony/http-client": "^7.4",
+        "symfony/runtime": "^7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/",
+            "Pimcore\\Model\\DataObject\\": "var/classes/DataObject"
+        }
+    },
+    "scripts": {
+        "post-update-cmd": [
+            "Pimcore\\Composer::postUpdate",
+            "@pimcore-scripts"
+        ],
+        "pimcore-scripts": [
+            "Pimcore\\Composer::clearCache",
+            "Pimcore\\Composer::installAssets"
+        ]
+    },
+    "repositories": {
+        "supertext": {
+            "type": "path",
+            "url": "../module",
+            "options": {
+                "symlink": false
+            }
+        }
+    },
+    "description": "Supertext Translation for Pimcore: demo site (Railway)."
+}

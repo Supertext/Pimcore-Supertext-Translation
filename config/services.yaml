@@ -1,0 +1,26 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: false
+
+    Supertext\PimcoreTranslationBundle\:
+        resource: '../src/'
+        exclude:
+            - '../src/Api/'
+            - '../src/DependencyInjection/'
+            - '../src/SupertextTranslationBundle.php'
+
+    Supertext\PimcoreTranslationBundle\Controller\:
+        resource: '../src/Controller/'
+        public: true
+        tags: ['controller.service_arguments']
+
+    Supertext\PimcoreTranslationBundle\Installer\Installer:
+        public: true
+        arguments:
+            $bundle: "@=service('kernel').getBundle('SupertextTranslationBundle')"
+
+    Supertext\PimcoreTranslationBundle\Webpack\WebpackEntryPointProvider:
+        tags:
+            - { name: pimcore_studio_ui.webpack_entry_point_provider }

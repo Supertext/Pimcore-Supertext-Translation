@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: phpunit:11
+      - name: Lint
+        run: find src tests demo/project/src -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+      - name: Unit tests
+        run: phpunit
+
+  studio:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: assets
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: assets/package-lock.json
+      - run: npm ci
+      - run: npm run check-types
+      - run: npm run build
+
+  demo:
+    runs-on: ubuntu-latest
+    # Pimcore 2026 only boots with a registered product key (repository secrets).
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -proot" --health-interval 5s --health-timeout 5s --health-retries 20
+      opensearch:
+        image: opensearchproject/opensearch:2.19.1
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: "true"
+          DISABLE_INSTALL_DEMO_CONFIG: "true"
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        ports: ["9200:9200"]
+    steps:
+      - name: Product key available?
+        id: key
+        env:
+          KEY: ${{ secrets.PIMCORE_PRODUCT_KEY }}
+        run: if [ -n "$KEY" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "No PIMCORE_PRODUCT_KEY secret; skipping the demo check."; fi
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.ok == 'true'
+        with:
+          node-version: 22
+      - name: Build the demo image
+        if: steps.key.outputs.ok == 'true'
+        run: docker build -f demo/Dockerfile -t supertext-pimcore-demo .
+      - name: Start the stand-in API
+        if: steps.key.outputs.ok == 'true'
+        run: node tests/docs/stand-in.mjs > stand-in.log 2>&1 &
+      - name: Start the demo twice, check the accounts, translate the samples
+        if: steps.key.outputs.ok == 'true'
+        env:
+          MYSQL_URL: mysql://root:root@127.0.0.1:3306/railway
+          PIMCORE_ENCRYPTION_SECRET: ${{ secrets.PIMCORE_ENCRYPTION_SECRET }}
+          PIMCORE_INSTANCE_IDENTIFIER: ${{ secrets.PIMCORE_INSTANCE_IDENTIFIER }}
+          PIMCORE_PRODUCT_KEY: ${{ secrets.PIMCORE_PRODUCT_KEY }}
+        run: tests/demo-check.sh
+      - if: failure()
+        run: docker logs demo 2>&1 | tail -150; cat stand-in.log

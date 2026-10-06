@@ -1,0 +1,44 @@
+{
+ "de": {
+  "Welcome": "Willkommen",
+  "A Pimcore demo site translated with Supertext.": "Eine Pimcore-Demo-Website, die mit Supertext übersetzt wurde.",
+  "Swiss chocolate, shipped worldwide": "Schweizer Schokolade, weltweit versandt",
+  "How a small family business in Bern brings handmade pralines to 40 countries.": "Wie ein kleines Familienunternehmen in Bern handgefertigte Pralinen in 40 Länder bringt.",
+  "Swiss chocolate": "Schweizer Schokolade",
+  "From Bern to the world": "Von Bern in die Welt",
+  "Every praline is filled and decorated by hand.": "Jede Praline wird von Hand gefüllt und verziert.",
+  "Order a tasting box": "Bestellen Sie eine Degustationsbox",
+  "<p>Every praline is made by hand in our <strong>Bern</strong> workshop. Read more on <a href=\"https://www.supertext.com\">our website</a>.</p><ul><li>Fresh ingredients from local farmers</li><li>Climate-neutral delivery within 48 hours</li></ul>": "<p>Jede Praline wird in unserer <strong>Berner</strong> Werkstatt von Hand hergestellt. Lesen Sie mehr auf <a href=\"https://www.supertext.com\">unserer Website</a>.</p><ul><li>Frische Zutaten von lokalen Bauern</li><li>Klimaneutrale Lieferung innerhalb von 48 Stunden</li></ul>",
+  "<p>Every praline is made by hand in our <strong>Bern</strong> workshop.</p><ul><li>Fresh ingredients from local farmers</li><li>Climate-neutral delivery within 48 hours</li></ul>": "<p>Jede Praline wird in unserer <strong>Berner</strong> Werkstatt von Hand hergestellt.</p><ul><li>Frische Zutaten von lokalen Bauern</li><li>Klimaneutrale Lieferung innerhalb von 48 Stunden</li></ul>",
+  "A small demo site with one product page.": "Eine kleine Demo-Website mit einer Produktseite.",
+  "<p>This site was written in <strong>English</strong>. Open a page in Pimcore Studio and use the Supertext button in the toolbar to create the German, French and Italian versions.</p>": "<p>Diese Seite wurde auf <strong>Englisch</strong> geschrieben. Öffnen Sie eine Seite in Pimcore Studio und erstellen Sie mit dem Supertext-Button in der Toolbar die deutsche, französische und italienische Version.</p>"
+ },
+ "fr": {
+  "Welcome": "Bienvenue",
+  "A Pimcore demo site translated with Supertext.": "Un site de démonstration Pimcore traduit avec Supertext.",
+  "Swiss chocolate, shipped worldwide": "Chocolat suisse, expédié dans le monde entier",
+  "How a small family business in Bern brings handmade pralines to 40 countries.": "Comment une petite entreprise familiale de Berne exporte des pralines artisanales dans 40 pays.",
+  "Swiss chocolate": "Chocolat suisse",
+  "From Bern to the world": "De Berne vers le monde",
+  "Every praline is filled and decorated by hand.": "Chaque praline est remplie et décorée à la main.",
+  "Order a tasting box": "Commandez une boîte de dégustation",
+  "<p>Every praline is made by hand in our <strong>Bern</strong> workshop. Read more on <a href=\"https://www.supertext.com\">our website</a>.</p><ul><li>Fresh ingredients from local farmers</li><li>Climate-neutral delivery within 48 hours</li></ul>": "<p>Chaque praline est confectionnée à la main dans notre <strong>atelier</strong> de Berne. En savoir plus sur <a href=\"https://www.supertext.com\">notre site</a>.</p><ul><li>Ingrédients frais provenant de fermes locales</li><li>Livraison neutre en carbone dans les 48 heures</li></ul>",
+  "<p>Every praline is made by hand in our <strong>Bern</strong> workshop.</p><ul><li>Fresh ingredients from local farmers</li><li>Climate-neutral delivery within 48 hours</li></ul>": "<p>Chaque praline est confectionnée à la main dans notre <strong>atelier</strong> de Berne.</p><ul><li>Ingrédients frais provenant de fermes locales</li><li>Livraison neutre en carbone dans les 48 heures</li></ul>",
+  "A small demo site with one product page.": "Un petit site de démonstration avec une page de produit.",
+  "<p>This site was written in <strong>English</strong>. Open a page in Pimcore Studio and use the Supertext button in the toolbar to create the German, French and Italian versions.</p>": "<p>Ce site a été rédigé en <strong>anglais</strong>. Ouvrez une page dans Pimcore Studio et utilisez le bouton Supertext dans la barre d’outils pour créer les versions allemande, française et italienne.</p>"
+ },
+ "it": {
+  "Welcome": "Benvenuti",
+  "A Pimcore demo site translated with Supertext.": "Un sito demo Pimcore tradotto con Supertext.",
+  "Swiss chocolate, shipped worldwide": "Cioccolato svizzero, spedito in tutto il mondo",
+  "How a small family business in Bern brings handmade pralines to 40 countries.": "Come un piccolo esercizio a conduzione familiare di Berna porta praline artigianali in 40 paesi.",
+  "Swiss chocolate": "Cioccolato svizzero",
+  "From Bern to the world": "Da Berna al mondo",
+  "Every praline is filled and decorated by hand.": "Ogni pralina è farcita e decorata a mano.",
+  "Order a tasting box": "Ordini una scatola di degustazione",
+  "<p>Every praline is made by hand in our <strong>Bern</strong> workshop. Read more on <a href=\"https://www.supertext.com\">our website</a>.</p><ul><li>Fresh ingredients from local farmers</li><li>Climate-neutral delivery within 48 hours</li></ul>": "<p>Ogni pralina è realizzata a mano nel nostro <strong>laboratorio</strong> di Berna. Per maggiori informazioni, visiti il <a href=\"https://www.supertext.com\">nostro sito web</a>.</p><ul><li>Ingredienti freschi provenienti da agricoltori locali</li><li>Consegna a impatto zero sul clima entro 48 ore</li></ul>",
+  "<p>Every praline is made by hand in our <strong>Bern</strong> workshop.</p><ul><li>Fresh ingredients from local farmers</li><li>Climate-neutral delivery within 48 hours</li></ul>": "<p>Ogni pralina è realizzata a mano nel nostro <strong>laboratorio</strong> di Berna.</p><ul><li>Ingredienti freschi provenienti da agricoltori locali</li><li>Consegna a impatto zero sul clima entro 48 ore</li></ul>",
+  "A small demo site with one product page.": "Un piccolo sito demo con una pagina di prodotto.",
+  "<p>This site was written in <strong>English</strong>. Open a page in Pimcore Studio and use the Supertext button in the toolbar to create the German, French and Italian versions.</p>": "<p>Questo sito è stato scritto in <strong>inglese</strong>. Aprire una pagina in Pimcore Studio e utilizzare il pulsante Supertext nella barra degli strumenti per creare le versioni in tedesco, francese e italiano.</p>"
+ }
+}

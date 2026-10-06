@@ -1,0 +1,6 @@
+/tests export-ignore
+/docs export-ignore
+/.github export-ignore
+/assets export-ignore
+/phpunit.xml.dist export-ignore
+/CLAUDE.md export-ignore

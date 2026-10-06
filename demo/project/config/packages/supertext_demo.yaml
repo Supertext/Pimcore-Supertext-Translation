@@ -1,0 +1,18 @@
+# Supertext demo: languages (read-only in Studio, defined here) and Supertext tone.
+pimcore:
+    config_location:
+        system_settings:
+            read_target:
+                type: 'symfony-config'
+            write_target:
+                type: 'disabled'
+    general:
+        valid_languages: [en, de_CH, fr_CH, it_CH]
+        default_language: en
+        fallback_languages: { de_CH: '', fr_CH: '', it_CH: '' }
+
+supertext_translation:
+    languages:
+        de_CH: { politeness: more }
+        fr_CH: { politeness: more }
+        it_CH: { politeness: more }

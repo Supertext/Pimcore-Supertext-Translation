@@ -1,0 +1,4 @@
+supertext_translation_api:
+    resource: "../../src/Controller/"
+    type: attribute
+    prefix: '%pimcore_studio_backend.url_prefix%'

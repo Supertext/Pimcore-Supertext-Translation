@@ -1,0 +1,24 @@
+{
+  "name": "pimcore-supertext-translation-studio",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "rsbuild build",
+    "dev": "NODE_ENV=development rsbuild build",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pimcore/studio-ui-bundle": "~2026.3.1",
+    "react": "18.3.x",
+    "react-dom": "18.3.x"
+  },
+  "devDependencies": {
+    "@module-federation/rsbuild-plugin": "^0.13.1",
+    "@rsbuild/core": "^1.3.16",
+    "@rsbuild/plugin-react": "^1.3.1",
+    "@types/react": "18.3.x",
+    "@types/react-dom": "18.3.x",
+    "typescript": "^5.3.3"
+  }
+}
