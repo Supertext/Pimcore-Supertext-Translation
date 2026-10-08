@@ -24,6 +24,27 @@ final class Settings
     public const KEY_HELP = 'No Supertext account yet? Create one at ' . self::SIGNUP_URL . '. '
         . 'Generate your API key at supertext.com → Integrations → API (requires the Admin role): ' . self::API_KEY_URL;
 
+    public const PACKAGE = 'supertext/pimcore-supertext-translation';
+    public const RELEASES_URL = 'https://github.com/Supertext/Pimcore-Supertext-Translation/releases/tag/';
+
+    /** The installed version, from Composer (the Git tag of the release), e.g. "1.2.0" or "dev-main". */
+    public static function version(): string
+    {
+        try {
+            $version = \Composer\InstalledVersions::getPrettyVersion(self::PACKAGE);
+        } catch (\OutOfBoundsException) {
+            $version = null;
+        }
+
+        return ltrim((string) ($version ?? 'unknown'), 'v');
+    }
+
+    /** Link to the GitHub release for X.Y.Z versions, otherwise null. */
+    public static function releaseUrl(string $version): ?string
+    {
+        return preg_match('/^\d+\.\d+\.\d+$/', $version) ? self::RELEASES_URL . 'v' . $version : null;
+    }
+
     /** A rejected key (HTTP 401/403) gets the account and API key links. */
     public static function withKeyHelp(SupertextException $e): SupertextException
     {

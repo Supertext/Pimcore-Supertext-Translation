@@ -18,6 +18,22 @@ final class SupertextTranslationBundle extends AbstractPimcoreBundle
         return \dirname(__DIR__);
     }
 
+    public function getNiceName(): string
+    {
+        return 'Supertext Translation';
+    }
+
+    public function getDescription(): string
+    {
+        return 'Translate documents and data objects with Supertext AI in Pimcore Studio.';
+    }
+
+    /** Shown by bin/console pimcore:bundle:list; from Composer (the release's Git tag). */
+    public function getVersion(): string
+    {
+        return Settings::version();
+    }
+
     public function getInstaller(): InstallerInterface
     {
         return $this->container->get(Installer::class);

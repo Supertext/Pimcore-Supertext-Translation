@@ -12,7 +12,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * bin/console supertext:check: shows the API address and checks the API key (cost-free).
+ * bin/console supertext:check: shows the bundle version and the API address and checks the API key (cost-free).
  */
 #[AsCommand(name: 'supertext:check', description: 'Checks the Supertext API key (no cost).')]
 final class CheckCommand extends Command
@@ -24,6 +24,9 @@ final class CheckCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $version = Settings::version();
+        $release = Settings::releaseUrl($version);
+        $output->writeln('Supertext Translation for Pimcore ' . $version . ($release ? " ({$release})" : ''));
         $output->writeln('API address: ' . $this->settings->baseUrl());
         if ($this->settings->apiKey() === '') {
             $output->writeln('<error>No API key. Set the SUPERTEXT_API_KEY environment variable.</error>');

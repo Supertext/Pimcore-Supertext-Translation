@@ -75,9 +75,12 @@ bin/console supertext:check
 ```
 
 ```
+Supertext Translation for Pimcore 0.1.0 (https://github.com/Supertext/Pimcore-Supertext-Translation/releases/tag/v0.1.0)
 API address: https://api.supertext.com/v1/
 Connected. The API key works.
 ```
+
+The first line is the installed version of the bundle.
 
 Without a key, the translate dialog tells editors that Supertext is not set up yet and shows the two links above; `supertext:check` and the error messages for a rejected key show them too.
 

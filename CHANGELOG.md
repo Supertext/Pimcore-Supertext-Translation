@@ -14,7 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Every translation is recorded as a note (type `supertext`) on the original.
 - Settings: `SUPERTEXT_API_KEY` (with or without the `Supertext-Auth-Key` prefix), `SUPERTEXT_API_URL`, and in `supertext_translation` YAML the environment, timeout, Supertext language code and form of address per language, and the translated field and editable types.
 - Links to create a Supertext account and to generate the API key in the dialog when no key is set, in messages for a rejected key, in `supertext:check` and in the installation guide.
-- Console commands `supertext:translate` and `supertext:check`.
+- Console commands `supertext:translate` and `supertext:check` (which also shows the installed version).
 - Retries when the Supertext API answers HTTP 429 (rate limit).
 - English and German Studio strings.
 - Demo for Railway (`demo/`) with demo accounts, an Editors role, four languages, sample pages and an article created on every start.

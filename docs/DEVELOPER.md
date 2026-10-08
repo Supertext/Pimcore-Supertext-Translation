@@ -18,7 +18,7 @@ A Symfony bundle (`Supertext\PimcoreTranslationBundle`) with a Pimcore Studio UI
 | `src/Service/ObjectTranslator.php` | Data objects: the localized fields of one language into others |
 | `src/Service/History.php` | One `Element\Note` (type `supertext`) per translation, on the source element; also the "Translated with Supertext on" dates |
 | `src/Controller/SupertextController.php` | Studio API endpoints (below) |
-| `src/Command/` | `supertext:translate`, `supertext:check` |
+| `src/Command/` | `supertext:translate`, `supertext:check` (also prints the installed version) |
 | `src/Webpack/WebpackEntryPointProvider.php` | Registers the plugin's build (`public/build/*/entrypoints.json`) with Studio |
 | `assets/js/src/` | The Studio plugin (React, TypeScript, Module Federation via rsbuild): `index.ts` registers the buttons in the document and data object editor toolbars, `components/translate-modal.tsx` is the dialog, `api.ts` the fetch calls |
 | `public/build/<hash>/` | The built plugin, committed (installs need no Node.js) |
@@ -194,7 +194,7 @@ Releases are published by `.github/workflows/release.yml` when the version is of
 
 1. If the Studio plugin changed, rebuild it (`cd assets && npm run build`) and commit `public/build/` (the old build folder is replaced). If strings changed, update `translations/studio.en.yaml` and `studio.de.yaml`.
 2. Move the *Unreleased* entries in `CHANGELOG.md` under a new `## X.Y.Z — YYYY-MM-DD` section, and keep an empty *Unreleased* above it.
-3. There is no version field to change: Composer takes the version from the Git tag the workflow creates.
+3. There is no version field to change: Composer takes the version from the Git tag the workflow creates, and `supertext:check` prints it (`Settings::version()`, via `Composer\InstalledVersions`).
 4. Push to `main`. The workflow tags `vX.Y.Z` and creates the GitHub release with the CHANGELOG section as notes (0.x versions as pre-releases). A push that adds no new version does nothing, and a version that is already released is skipped. After fixing a failed run, start it again with *Run workflow* on the *Release* workflow.
 
 Submitting the package to Packagist is planned.
