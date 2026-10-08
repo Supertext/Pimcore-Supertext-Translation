@@ -1,0 +1,24 @@
+{
+  "entrypoints": {
+    "main": {
+      "js": [
+        "/bundles/supertexttranslation/build/eb3061c7c6e4/static/js/237.9b71d62d.js",
+        "/bundles/supertexttranslation/build/eb3061c7c6e4/static/js/main.ad2f80f1.js"
+      ],
+      "css": []
+    },
+    "supertext_translation_bundle": {
+      "js": [
+        "/bundles/supertexttranslation/build/eb3061c7c6e4/static/js/async/__federation_expose_default_export.e84e4601.js",
+        "/bundles/supertexttranslation/build/eb3061c7c6e4/static/js/remoteEntry.js"
+      ],
+      "css": []
+    },
+    "exposeRemote": {
+      "js": [
+        "/bundles/supertexttranslation/build/eb3061c7c6e4/exposeRemote.js"
+      ],
+      "css": []
+    }
+  }
+}

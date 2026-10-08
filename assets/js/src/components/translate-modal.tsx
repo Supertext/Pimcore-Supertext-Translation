@@ -153,7 +153,7 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
           { results.map(r => (
             <Alert
               action={ r.documentId !== undefined && r.status !== 'error'
-                ? <Button onClick={ () => { void openElement({ id: r.documentId!, type: 'document' }) } } size="small">{ t('supertext.open') }</Button>
+                ? <Button onClick={ () => { close(); void openElement({ id: r.documentId!, type: 'document' }) } } size="small">{ t('supertext.open') }</Button>
                 : undefined }
               key={ r.language }
               message={ `${names[r.language] ?? r.language}: ${

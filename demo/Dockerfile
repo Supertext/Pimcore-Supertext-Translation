@@ -31,6 +31,7 @@ WORKDIR /app/demo/project
 RUN rm -f .env.local && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --no-progress --prefer-dist --no-scripts \
  && mkdir -p var public/var \
  && chown www-data:www-data . && chown -R www-data:www-data var public config \
+ && for d in vendor/pimcore/*/public; do chown -R www-data:www-data "$d"; done \
  && chmod +x /app/demo/docker/entrypoint.sh
 
 ENV APP_ENV=prod APP_DEBUG=0 PORT=8080

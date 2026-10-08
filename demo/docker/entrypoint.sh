@@ -75,6 +75,9 @@ if [ "$installed" = "no" ]; then
 fi
 
 console cache:clear --no-warmup > /dev/null
+# The warmup also unpacks Pimcore Studio's frontend (into vendor/pimcore/*/public) before
+# assets:install copies it to public/bundles.
+console cache:warmup > /dev/null
 console doctrine:migrations:migrate --no-interaction --allow-no-migration --prefix='Pimcore\Bundle\CoreBundle' > /dev/null 2>&1 || true
 console pimcore:bundle:install SupertextTranslationBundle > /dev/null 2>&1 || true
 console pimcore:deployment:classes-rebuild --create-classes --no-interaction | grep -v '^$' || true
@@ -82,7 +85,6 @@ console assets:install public > /dev/null
 # OpenSearch keeps no data between deploys on Railway: rebuild the search index every start.
 console generic-data-index:update:index --no-interaction > /tmp/index.log 2>&1 || { echo "[demo] Search index update failed:"; tail -20 /tmp/index.log; }
 console supertext:demo-setup
-console cache:warmup > /dev/null
 
 # Mercure hub on 127.0.0.1:3000 (Apache proxies /.well-known/mercure to it).
 mkdir -p /tmp/mercure/caddy
