@@ -75,12 +75,21 @@ final class DemoSetupCommand extends Command
 
     private function ensureEditorsRole(): User\Role
     {
+        // "classes": Pimcore Studio 2026.3 only opens data objects for users with this permission.
+        $permissions = ['documents', 'objects', 'classes', 'notes_events', Settings::PERMISSION];
         $role = User\Role::getByName('Editors');
         if ($role instanceof User\Role) {
+            $missing = array_diff($permissions, $role->getPermissions());
+            if ($missing !== []) {
+                $role->setPermissions(array_values(array_unique([...$role->getPermissions(), ...$missing])));
+                $role->save();
+                $this->log('Role Editors: added permissions ' . implode(', ', $missing) . '.');
+            }
+
             return $role;
         }
         $role = User\Role::create(['parentId' => 0, 'name' => 'Editors']);
-        $role->setPermissions(['documents', 'objects', 'notes_events', Settings::PERMISSION]);
+        $role->setPermissions($permissions);
         $workspace = ['cpath' => '/', 'list' => true, 'view' => true, 'save' => true, 'publish' => true, 'unpublish' => true,
             'delete' => false, 'rename' => true, 'create' => true, 'settings' => true, 'versions' => true, 'properties' => true];
         $documents = new User\Workspace\Document();
@@ -102,6 +111,11 @@ final class DemoSetupCommand extends Command
             $password = (string) getenv("{$prefix}_PASSWORD");
             if ($email === '' || $password === '') {
                 $this->log("{$prefix}_EMAIL / {$prefix}_PASSWORD not set; skipping that account.");
+                continue;
+            }
+            // Pimcore's own rule (installer): user name and password of at least 4 characters.
+            if (mb_strlen($email) < 4 || mb_strlen($password) < 4) {
+                $this->log("WARNING: {$prefix}_EMAIL / {$prefix}_PASSWORD must have at least 4 characters (Pimcore's rule); skipping that account.");
                 continue;
             }
             if (User::getByName($email) instanceof User) {
@@ -159,7 +173,7 @@ final class DemoSetupCommand extends Command
         $page->setProperty('language', 'text', 'en', false, true);
         $page->setProperty('navigation_name', 'text', $navigation, false, false);
         foreach ($editables as $name => [$type, $data]) {
-            $page->setRawEditable($name, $type, \is_array($data) ? serialize($data) : $data);
+            $page->setRawEditable($name, $type, $data);
         }
         $page->setPublished(true);
         $page->save();

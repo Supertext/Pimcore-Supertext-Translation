@@ -28,6 +28,16 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
   const [overwrite, setOverwrite] = useState(false)
   const [busy, setBusy] = useState(false)
   const [results, setResults] = useState<TranslationResult[] | null>(null)
+  // The editor is reloaded when the dialog closes: reloading it earlier would close the dialog
+  // (it lives in the editor's toolbar) before the results are shown.
+  const [changed, setChanged] = useState(false)
+
+  const close = (): void => {
+    if (changed) {
+      refreshElement(id, true)
+    }
+    onClose()
+  }
 
   const load = async (keepSource?: string): Promise<void> => {
     try {
@@ -68,7 +78,7 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
       setResults(out)
       setOverwrite(false)
       if (type === 'data-object' && out.some(r => r.status === 'translated')) {
-        refreshElement(id, true)
+        setChanged(true)
       }
       await load(source)
     } catch (e) {
@@ -82,7 +92,7 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
 
   const marker = (l: LanguageState): React.JSX.Element | null => {
     if (l.lastTranslation != null) {
-      return <Tag>{ t('supertext.translated-on', { date: date(l.lastTranslation) }) }</Tag>
+      return <Tag>{ t('supertext.translated-on', { date: date(l.lastTranslation), interpolation: { escapeValue: false } }) }</Tag>
     }
     if (exists(type, l)) {
       return <Tag>{ t('supertext.already-translated') }</Tag>
@@ -100,10 +110,10 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
     <Modal
       className="supertext-modal"
       footer={ results !== null
-        ? <Button onClick={ onClose }>{ t('supertext.close') }</Button>
+        ? <Button onClick={ close }>{ t('supertext.close') }</Button>
         : (
           <Space>
-            <Button onClick={ onClose }>{ t('supertext.cancel') }</Button>
+            <Button onClick={ close }>{ t('supertext.cancel') }</Button>
             <Button
               className="supertext-submit"
               disabled={ busy || info === null || !info.configured || targets.length === 0 || source === '' }
@@ -115,7 +125,7 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
             </Button>
           </Space>
           ) }
-      onCancel={ onClose }
+      onCancel={ close }
       open
       size="ML"
       title={ t('supertext.title') }

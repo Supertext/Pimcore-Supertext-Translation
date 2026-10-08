@@ -5,6 +5,8 @@
 set -euo pipefail
 cd /app/demo/project
 echo "[demo] Starting…"
+DEMO_ADMIN_EMAIL="${DEMO_ADMIN_EMAIL:-}" DEMO_ADMIN_PASSWORD="${DEMO_ADMIN_PASSWORD:-}"
+DEMO_EDITOR_EMAIL="${DEMO_EDITOR_EMAIL:-}" DEMO_EDITOR_PASSWORD="${DEMO_EDITOR_PASSWORD:-}"
 
 need() {
   if [ -z "${!1:-}" ]; then echo "[demo] $1 is not set. See demo/.env.example."; exit 1; fi
@@ -58,8 +60,11 @@ if [ "$installed" = "no" ]; then
   echo "[demo] First start: installing Pimcore (takes a few minutes)…"
   # The installer needs an administrator. DEMO_ADMIN_* when set, otherwise a random password
   # nobody knows (the demo's own accounts are created below).
-  admin_user="${DEMO_ADMIN_EMAIL:-pimcore-install}"
-  admin_password="${DEMO_ADMIN_PASSWORD:-$(php -r 'echo bin2hex(random_bytes(24));')}"
+  admin_user="pimcore-install"
+  admin_password="$(php -r 'echo bin2hex(random_bytes(24));')"
+  if [ "${#DEMO_ADMIN_EMAIL}" -ge 4 ] && [ "${#DEMO_ADMIN_PASSWORD}" -ge 4 ]; then
+    admin_user="$DEMO_ADMIN_EMAIL"; admin_password="$DEMO_ADMIN_PASSWORD"
+  fi
   if ! runuser -u www-data -- env PIMCORE_ADMIN_USER="$admin_user" PIMCORE_ADMIN_PASSWORD="$admin_password" \
       vendor/bin/pimcore-install --install-profile='App\Installer\SkeletonProfile' --no-interaction > /tmp/install.log 2>&1; then
     echo "[demo] Pimcore install failed:"; grep -viE 'password|secret|key' /tmp/install.log | tail -40; exit 1
@@ -80,8 +85,9 @@ console supertext:demo-setup
 console cache:warmup > /dev/null
 
 # Mercure hub on 127.0.0.1:3000 (Apache proxies /.well-known/mercure to it).
+mkdir -p /tmp/mercure/caddy
 MERCURE_PUBLISHER_JWT_KEY="$MERCURE_JWT_KEY" MERCURE_SUBSCRIBER_JWT_KEY="$MERCURE_JWT_KEY" SERVER_NAME=':3000' \
-  MERCURE_EXTRA_DIRECTIVES='anonymous' XDG_DATA_HOME=/tmp XDG_CONFIG_HOME=/tmp \
+  MERCURE_EXTRA_DIRECTIVES='anonymous' GLOBAL_OPTIONS='auto_https off' XDG_DATA_HOME=/tmp/mercure XDG_CONFIG_HOME=/tmp/mercure \
   mercure run --config /etc/mercure/Caddyfile --adapter caddyfile > /tmp/mercure.log 2>&1 &
 
 # Messenger worker (search index updates, maintenance), restarted every hour.

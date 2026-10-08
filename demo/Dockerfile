@@ -30,7 +30,7 @@ COPY demo/docker /app/demo/docker
 WORKDIR /app/demo/project
 RUN rm -f .env.local && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --no-progress --prefer-dist --no-scripts \
  && mkdir -p var public/var \
- && chown -R www-data:www-data var public/var config \
+ && chown www-data:www-data . && chown -R www-data:www-data var public config \
  && chmod +x /app/demo/docker/entrypoint.sh
 
 ENV APP_ENV=prod APP_DEBUG=0 PORT=8080

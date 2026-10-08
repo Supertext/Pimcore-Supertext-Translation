@@ -10,6 +10,7 @@ use Pimcore\Model\Document\PageSnippet;
 use Pimcore\Model\Element\Service as ElementService;
 use Pimcore\Model\User;
 use Pimcore\Tool;
+use Symfony\Component\String\Slugger\AsciiSlugger;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
 use Supertext\PimcoreTranslationBundle\Settings;
 
@@ -174,7 +175,7 @@ final class DocumentTranslator
         $keySource = $translated['property:navigation_name'] ?? $translated['meta:title'] ?? null;
         $key = $parent->getId() === 1
             ? strtolower(str_replace('_', '-', $target))
-            : ($keySource !== null ? ElementService::getValidKey($keySource, 'document') : $copy->getKey());
+            : ($keySource !== null ? $this->slug($keySource, $target) : $copy->getKey());
         $copy->setKey($key);
         $copy->setKey(Document\Service::getUniqueKey($copy));
         $this->apply($copy, $units, $translated);
@@ -237,6 +238,14 @@ final class DocumentTranslator
                     break;
             }
         }
+    }
+
+    /** URL-friendly key from a translated name: "Schweizer Schokolade" → "schweizer-schokolade". */
+    private function slug(string $text, string $language): string
+    {
+        $slug = (string) (new AsciiSlugger(explode('_', $language)[0]))->slug(strip_tags($text))->lower();
+
+        return ElementService::getValidKey($slug !== '' ? $slug : $text, 'document');
     }
 
     /** @return array<string, array{text: string, html: bool}> */
