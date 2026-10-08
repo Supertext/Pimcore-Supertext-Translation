@@ -20,6 +20,18 @@ final class Settings
     public const SIGNUP_URL = 'https://www.supertext.com/person/en/account/signin';
     public const API_KEY_URL = 'https://www.supertext.com/en/integrations/api';
 
+    /** Appended wherever the API key is missing or rejected (plain text: API and console). */
+    public const KEY_HELP = 'No Supertext account yet? Create one at ' . self::SIGNUP_URL . '. '
+        . 'Generate your API key at supertext.com → Integrations → API (requires the Admin role): ' . self::API_KEY_URL;
+
+    /** A rejected key (HTTP 401/403) gets the account and API key links. */
+    public static function withKeyHelp(SupertextException $e): SupertextException
+    {
+        return \in_array($e->getCode(), [401, 403], true)
+            ? new SupertextException($e->getMessage() . ' ' . self::KEY_HELP, $e->getCode(), $e)
+            : $e;
+    }
+
     public function __construct(
         #[Autowire(param: 'supertext_translation.config')]
         private readonly array $config,

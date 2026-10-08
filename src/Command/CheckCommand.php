@@ -27,15 +27,14 @@ final class CheckCommand extends Command
         $output->writeln('API address: ' . $this->settings->baseUrl());
         if ($this->settings->apiKey() === '') {
             $output->writeln('<error>No API key. Set the SUPERTEXT_API_KEY environment variable.</error>');
-            $output->writeln('No Supertext account yet? Create one at ' . Settings::SIGNUP_URL);
-            $output->writeln('Generate your API key at supertext.com → Integrations → API (requires the Admin role): ' . Settings::API_KEY_URL);
+            $output->writeln(Settings::KEY_HELP);
 
             return Command::FAILURE;
         }
         try {
             $this->settings->client()->validateApiKey();
         } catch (SupertextException $e) {
-            $output->writeln('<error>' . $e->getMessage() . '</error>');
+            $output->writeln('<error>' . Settings::withKeyHelp($e)->getMessage() . '</error>');
 
             return Command::FAILURE;
         }

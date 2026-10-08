@@ -30,9 +30,7 @@ final class SegmentTranslator
     {
         if ($this->client === null && $this->settings->apiKey() === '') {
             throw new SupertextException(
-                'No Supertext API key is configured. Set the SUPERTEXT_API_KEY environment variable. '
-                . 'No Supertext account yet? Create one at ' . Settings::SIGNUP_URL . '. '
-                . 'Generate your API key at ' . Settings::API_KEY_URL . ' (requires the Admin role).'
+                'No Supertext API key is configured. Set the SUPERTEXT_API_KEY environment variable. ' . Settings::KEY_HELP
             );
         }
     }
@@ -56,12 +54,16 @@ final class SegmentTranslator
         $source = strtolower(explode('-', $this->settings->languageCode($sourceLanguage))[0]);
         $out = [];
         foreach (HtmlDocument::chunks($indexed) as $chunk) {
-            $html = $client->translateDocument(
-                HtmlDocument::build($chunk),
-                $this->settings->languageCode($targetLanguage),
-                $source,
-                $this->settings->politeness($targetLanguage) ?: 'default'
-            );
+            try {
+                $html = $client->translateDocument(
+                    HtmlDocument::build($chunk),
+                    $this->settings->languageCode($targetLanguage),
+                    $source,
+                    $this->settings->politeness($targetLanguage) ?: 'default'
+                );
+            } catch (SupertextException $e) {
+                throw Settings::withKeyHelp($e);
+            }
             $isHtml = array_map(static fn (array $s): bool => $s['html'], $chunk);
             foreach (HtmlDocument::parse($html, $isHtml) as $i => $translation) {
                 $out[$keys[$i]] = $translation;

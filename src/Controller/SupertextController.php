@@ -95,11 +95,19 @@ final class SupertextController extends AbstractApiController
                 ? $this->documents->translate($element, $targets, $overwrite, $user)
                 : $this->objects->translate($element, (string) ($payload['source'] ?? ''), $targets, $overwrite, $user);
         } catch (SupertextException $e) {
+            $this->logger->warning('Supertext translation failed: ' . $e->getMessage(), ['type' => $type, 'id' => $id]);
+
             return $this->error($e->getMessage(), 400);
         } catch (\Throwable $e) {
             $this->logger->error('Supertext translation failed: ' . $e->getMessage(), ['exception' => $e]);
 
             return $this->error($e->getMessage(), 500);
+        }
+
+        foreach ($results as $result) {
+            if ($result['status'] === 'error') {
+                $this->logger->warning(sprintf('Supertext translation into %s failed: %s', $result['language'], $result['message']), ['type' => $type, 'id' => $id]);
+            }
         }
 
         return new JsonResponse(['results' => $results]);
@@ -141,12 +149,12 @@ final class SupertextController extends AbstractApiController
             return $this->error('Only administrators can test the connection.', 403);
         }
         if ($this->settings->apiKey() === '') {
-            return $this->error('No Supertext API key is configured. Set the SUPERTEXT_API_KEY environment variable.', 400);
+            return $this->error('No Supertext API key is configured. Set the SUPERTEXT_API_KEY environment variable. ' . Settings::KEY_HELP, 400);
         }
         try {
             $this->settings->client()->validateApiKey();
         } catch (SupertextException $e) {
-            return $this->error($e->getMessage(), 502);
+            return $this->error(Settings::withKeyHelp($e)->getMessage(), 502);
         }
 
         return new JsonResponse(['ok' => true, 'message' => 'Connected. The API key works.']);
