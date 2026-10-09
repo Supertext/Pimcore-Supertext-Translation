@@ -4,12 +4,17 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.4"
           tools: phpunit:11
@@ -18,14 +23,33 @@ jobs:
       - name: Unit tests
         run: phpunit
 
+  phpstan:
+    name: PHPStan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.4"
+          tools: composer, phpstan:2.3
+          coverage: none
+      - name: Install Pimcore (PHPStan needs its classes)
+        run: composer install --no-dev --no-scripts --no-plugins --ignore-platform-reqs --no-interaction --no-progress --prefer-dist
+      - name: PHPStan
+        run: phpstan analyse --no-progress --memory-limit=2G --error-format=github
+
   studio:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: assets
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
           cache: npm
@@ -60,9 +84,11 @@ jobs:
         env:
           KEY: ${{ secrets.PIMCORE_PRODUCT_KEY }}
         run: if [ -n "$KEY" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "No PIMCORE_PRODUCT_KEY secret; skipping the demo check."; fi
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.key.outputs.ok == 'true'
-      - uses: actions/setup-node@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         if: steps.key.outputs.ok == 'true'
         with:
           node-version: 22

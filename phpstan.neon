@@ -1,0 +1,9 @@
+# PHPStan: see docs/DEVELOPER.md → Code quality and security checks.
+# Needs Pimcore's classes: run `composer install` in the repository root first (CI does).
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 5
+    paths:
+        - src
