@@ -22,7 +22,7 @@ A Symfony bundle (`Supertext\PimcoreTranslationBundle`) with a Pimcore Studio UI
 | `src/Webpack/WebpackEntryPointProvider.php` | Registers the plugin's build (`public/build/*/entrypoints.json`) with Studio |
 | `assets/js/src/` | The Studio plugin (React, TypeScript, Module Federation via rsbuild): `index.ts` registers the buttons in the document and data object editor toolbars, `components/translate-modal.tsx` is the dialog, `api.ts` the fetch calls |
 | `public/build/<hash>/` | The built plugin, committed (installs need no Node.js) |
-| `translations/studio.{en,de}.yaml` | Studio strings (dialog, permission label) |
+| `translations/studio.{en,de,fr,it}.yaml` | Studio strings (dialog, permission label, `supertext.error.*` for the messages from the API), in English, German, French and Italian |
 | `config/` | Services, the route import |
 
 **Studio API** (session authentication, under `/pimcore-studio/api`):
@@ -116,6 +116,7 @@ cd assets && npm run check-types && npm run build
 ```
 
 - `tests/unit/SupertextClientTest.php`: the API protocol, auth header and prefix, 429 retries, errors, clean-up.
+- `tests/unit/StudioTranslationsTest.php`: the four `studio.*.yaml` files have the same keys, `{{placeholders}}` and links, and every error key the PHP code sends has an English text.
 - `tests/unit/HtmlDocumentTest.php`, `tests/unit/ChunksTest.php`: document packing and parsing, whitespace, splitting below the size limit.
 - `tests/demo-check.sh` (CI): the demo image on MySQL and OpenSearch with the stand-in, started twice: demo accounts created once and never duplicated, no passwords in the log, the Editors role and the permission, `supertext:check`, the parent-page rule, translation of the sample pages and article as the editor into three languages (titles, slug keys, HTML with markup, link texts, unpublished pages, linked translations, notes), and the skip on a second run.
 
@@ -192,7 +193,7 @@ The script uses a 1400×900 window; some clicks (the data object tree, the objec
 
 Releases are published by `.github/workflows/release.yml` when the version is officially bumped; nobody tags or creates releases by hand.
 
-1. If the Studio plugin changed, rebuild it (`cd assets && npm run build`) and commit `public/build/` (the old build folder is replaced). If strings changed, update `translations/studio.en.yaml` and `studio.de.yaml`.
+1. If the Studio plugin changed, rebuild it (`cd assets && npm run build`) and commit `public/build/` (the old build folder is replaced). If strings changed, update all four `translations/studio.*.yaml` (en, de, fr, it).
 2. Move the *Unreleased* entries in `CHANGELOG.md` under a new `## X.Y.Z — YYYY-MM-DD` section, and keep an empty *Unreleased* above it.
 3. There is no version field to change: Composer takes the version from the Git tag the workflow creates, and `supertext:check` prints it (`Settings::version()`, via `Composer\InstalledVersions`).
 4. Push to `main`. The workflow tags `vX.Y.Z` and creates the GitHub release with the CHANGELOG section as notes (0.x versions as pre-releases). A push that adds no new version does nothing, and a version that is already released is skipped. After fixing a failed run, start it again with *Run workflow* on the *Release* workflow.
@@ -202,7 +203,8 @@ Submitting the package to Packagist is planned.
 ## Conventions
 
 - PSR-12, PHP 8.4, typed properties; keep `src/Api/` free of Pimcore and Symfony classes.
-- Studio strings in `translations/studio.*.yaml` (English and German); API and console messages in English.
+- Studio strings in `translations/studio.{en,de,fr,it}.yaml`: every new string in all four (formal address: Sie, vous, Lei; Pimcore's own terms; never translate "Supertext", `{{placeholders}}` or URLs). Console messages, logs, notes and version comments stay English.
+- Messages from the API: the JSON carries the English `error`/`message` plus a `key` (`supertext.error.<key>`), `params` and Supertext's untranslated `detail`; `SupertextException` takes them as named arguments (`key: 'parent-missing'`), and the per-language results carry them too. `translate-modal.tsx` → `describe()` shows the translation (with the detail in brackets, and `supertext.error.key-help` after key errors) or the English text if the key is unknown. A new message needs its key in all four files.
 - Keep the three docs in `docs/` current with every change (see `CLAUDE.md`).
 
 ## Known limitations / roadmap

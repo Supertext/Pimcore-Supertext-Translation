@@ -83,7 +83,8 @@ final class DocumentTranslator
     /**
      * @param list<string> $targets
      *
-     * @return list<array{language: string, status: string, message: string, documentId?: int, path?: string, created?: bool}>
+     * @return list<array{language: string, status: string, message: string, key?: string, params?: array<string, string|int>, detail?: string, documentId?: int, path?: string, created?: bool}>
+     *         message: English; key/params/detail: for the UI (`supertext.error.<key>`)
      */
     public function translate(PageSnippet $document, array $targets, bool $overwrite, User $user): array
     {
@@ -91,7 +92,7 @@ final class DocumentTranslator
         $document = $this->latest($document, $user);
         $units = $this->units($document);
         if ($units === []) {
-            throw new SupertextException('This document has no text to translate.');
+            throw new SupertextException('This document has no text to translate.', key: 'no-document-text');
         }
         $this->segments->assertConfigured();
         $translations = $this->translations($document);
@@ -102,7 +103,7 @@ final class DocumentTranslator
                 continue;
             }
             if (!\in_array($target, Tool::getValidLanguages(), true)) {
-                $results[] = ['language' => $target, 'status' => 'error', 'message' => sprintf('Unknown language %s.', $target)];
+                $results[] = ['language' => $target, 'status' => 'error', 'message' => sprintf('Unknown language %s.', $target), 'key' => 'unknown-language', 'params' => ['language' => $target]];
                 continue;
             }
             $existing = isset($translations[$target]) ? Document::getById($translations[$target]) : null;
@@ -115,7 +116,7 @@ final class DocumentTranslator
                     ? $this->update($document, $existing, $units, $source, $target, $user)
                     : $this->create($document, $units, $source, $target, $user);
             } catch (SupertextException $e) {
-                $results[] = ['language' => $target, 'status' => 'error', 'message' => $e->getMessage()];
+                $results[] = ['language' => $target, 'status' => 'error'] + $e->toArray();
             }
         }
 
@@ -161,10 +162,10 @@ final class DocumentTranslator
     {
         $parent = $this->targetParent($document, $target);
         if (!$parent) {
-            throw new SupertextException('Translate the parent page into this language first.');
+            throw new SupertextException('Translate the parent page into this language first.', key: 'parent-missing');
         }
         if (!$parent->isAllowed('create', $user)) {
-            throw new SupertextException('You are not allowed to create documents there.');
+            throw new SupertextException('You are not allowed to create documents there.', key: 'create-not-allowed');
         }
         $translated = $this->segments->translate($this->segmentsOf($units), $source, $target);
 
@@ -189,7 +190,7 @@ final class DocumentTranslator
     private function update(PageSnippet $document, PageSnippet $existing, array $units, string $source, string $target, User $user): array
     {
         if (!$existing->isAllowed('save', $user)) {
-            throw new SupertextException('You are not allowed to edit the translation.');
+            throw new SupertextException('You are not allowed to edit the translation.', key: 'edit-not-allowed');
         }
         $translated = $this->segments->translate($this->segmentsOf($units), $source, $target);
         $existing = $this->latest($existing, $user);

@@ -30,7 +30,8 @@ final class SegmentTranslator
     {
         if ($this->client === null && $this->settings->apiKey() === '') {
             throw new SupertextException(
-                'No Supertext API key is configured. Set the SUPERTEXT_API_KEY environment variable. ' . Settings::KEY_HELP
+                'No Supertext API key is configured. Set the SUPERTEXT_API_KEY environment variable. ' . Settings::KEY_HELP,
+                key: 'not-configured',
             );
         }
     }

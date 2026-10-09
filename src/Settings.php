@@ -49,7 +49,7 @@ final class Settings
     public static function withKeyHelp(SupertextException $e): SupertextException
     {
         return \in_array($e->getCode(), [401, 403], true)
-            ? new SupertextException($e->getMessage() . ' ' . self::KEY_HELP, $e->getCode(), $e)
+            ? new SupertextException($e->getMessage() . ' ' . self::KEY_HELP, $e->getCode(), $e, $e->key, $e->params, $e->detail)
             : $e;
     }
 
@@ -123,7 +123,7 @@ final class Settings
 
                 return ['status' => $response->getStatusCode(), 'body' => $response->getContent(false), 'headers' => $out];
             } catch (TransportExceptionInterface $e) {
-                throw new SupertextException('The Supertext service could not be reached. ' . $e->getMessage());
+                throw new SupertextException('The Supertext service could not be reached. ' . $e->getMessage(), 0, $e, 'unreachable', [], $e->getMessage());
             }
         };
 

@@ -95,6 +95,10 @@ The bundle translates into the languages set up in Pimcore: **System Settings �
 
 Pimcore's language codes are sent to Supertext as BCP 47 codes: `de_CH` → `de-CH`, `fr` → `fr`. Override the code or set the form of address per language in the bundle configuration (see [Settings](#settings)).
 
+## Interface languages
+
+The bundle's Studio screens (the *Translate with Supertext* button and dialog, the permission label and the error messages in the dialog) are available in English, German, French and Italian. They follow each user's Pimcore Studio interface language: the *Language* in the user's profile (user menu → *My profile*; administrators can set it for other users in the user management). Other languages show the English texts. The command-line output, the log and the notes and version comments the bundle writes stay English.
+
 ## Permissions
 
 In **System → User & Roles**, give editors' roles (or users):

@@ -71,20 +71,21 @@ final class ObjectTranslator
     /**
      * @param list<string> $targets
      *
-     * @return list<array{language: string, status: string, message: string}>
+     * @return list<array{language: string, status: string, message: string, key?: string, params?: array<string, string|int>, detail?: string}>
+     *         message: English; key/params/detail: for the UI (`supertext.error.<key>`)
      */
     public function translate(Concrete $object, string $source, array $targets, bool $overwrite, User $user): array
     {
         $object = $this->latest($object, $user);
         $fields = $this->fields($object);
         if ($fields === []) {
-            throw new SupertextException('This object has no localized text fields to translate.');
+            throw new SupertextException('This object has no localized text fields to translate.', key: 'no-fields');
         }
         if (!\in_array($source, Tool::getValidLanguages(), true)) {
-            throw new SupertextException(sprintf('Unknown language %s.', $source));
+            throw new SupertextException(sprintf('Unknown language %s.', $source), key: 'unknown-language', params: ['language' => $source]);
         }
         if (!$this->hasContent($object, $fields, $source)) {
-            throw new SupertextException(sprintf('The object has no %s text to translate from.', $source));
+            throw new SupertextException(sprintf('The object has no %s text to translate from.', $source), key: 'no-source-text', params: ['language' => $source]);
         }
         $this->segments->assertConfigured();
 
@@ -104,11 +105,11 @@ final class ObjectTranslator
                 continue;
             }
             if (!\in_array($target, Tool::getValidLanguages(), true)) {
-                $results[] = ['language' => $target, 'status' => 'error', 'message' => sprintf('Unknown language %s.', $target)];
+                $results[] = ['language' => $target, 'status' => 'error', 'message' => sprintf('Unknown language %s.', $target), 'key' => 'unknown-language', 'params' => ['language' => $target]];
                 continue;
             }
             if ($editable !== null && !isset($editable[$target])) {
-                $results[] = ['language' => $target, 'status' => 'error', 'message' => 'You are not allowed to edit this language.'];
+                $results[] = ['language' => $target, 'status' => 'error', 'message' => 'You are not allowed to edit this language.', 'key' => 'language-not-allowed'];
                 continue;
             }
             if (!$overwrite && $this->hasContent($object, $fields, $target)) {
@@ -124,7 +125,7 @@ final class ObjectTranslator
                 $changed[] = $target;
                 $results[] = ['language' => $target, 'status' => 'translated', 'message' => ''];
             } catch (SupertextException $e) {
-                $results[] = ['language' => $target, 'status' => 'error', 'message' => $e->getMessage()];
+                $results[] = ['language' => $target, 'status' => 'error'] + $e->toArray();
             }
         }
 

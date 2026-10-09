@@ -23,6 +23,10 @@ Everywhere an administrator enters or is told about the API key — the settings
 
 Wording: "No Supertext account yet? Create one at supertext.com. Generate your API key at supertext.com → Integrations → API (requires the Admin role)." In the UI, links open in a new tab (`target="_blank" rel="noopener"`); where the CMS shows plain text only, use the bare URLs. New screens or messages that mention the key get the links too.
 
+## UI languages (always)
+
+The plugin's own UI (buttons, panels, dialogs, settings, permissions, messages) is available in English, German, French and Italian through the CMS's own translation mechanism, so it follows the user's back-end language. New or changed strings get all four languages in the same commit. Formal address (Sie, vous, Lei), the CMS's own terms in each language, "Supertext", placeholders and URLs never translated.
+
 ## Plugin list (always)
 
 `README.md` ends with the shared list of all Supertext plugins (between the `<!-- supertext-plugins:start -->` and `<!-- supertext-plugins:end -->` markers). It is identical in every Supertext plugin repo: when a plugin is added, renamed or its description changes, update the list in **all** repos, not just this one.
@@ -77,7 +81,7 @@ Lessons from the live API, apply them here: header `Authorization: Supertext-Aut
 - Test UI changes in the demo (see `docs/DEVELOPER.md` → Local development) and regenerate the screenshots they affect (`tests/docs/screenshots.mjs`).
 - New settings go in `src/DependencyInjection/Configuration.php` (read through `src/Settings.php`) **and** the settings table in `docs/INSTALLATION.md`.
 - Field rules live in `src/Service/DocumentTranslator.php` (`units`) and `src/Service/ObjectTranslator.php` (`fields`); keep "Field rules" in `docs/DEVELOPER.md` and "What is translated" in `docs/USER_GUIDE.md` in sync.
-- Studio strings: `translations/studio.en.yaml` and `studio.de.yaml`; API messages are English.
+- Studio strings: `translations/studio.{en,de,fr,it}.yaml` (all four for every string). API messages are English and carry a `key` the dialog shows as `supertext.error.<key>` (see `docs/DEVELOPER.md` → Conventions).
 - Keep `src/Api/` free of Pimcore and Symfony classes (unit tests run without Pimcore).
 - The bundle name `SupertextTranslationBundle`, the permission `supertext_translate`, the note type `supertext` and the API routes under `/pimcore-studio/api/supertext/` are stored in or used by users' installations; renaming them is a breaking change.
 - `demo/` is the Railway demo (`railway.json` → `demo/Dockerfile`, context = repo root; the bundle is copied to `demo/module`, see `demo/stage-module.sh`). Demo-only setup is `demo/project/src/Command/DemoSetupCommand.php` (`supertext:demo-setup`); it only creates what's missing. The class `Article` is defined in `demo/project/config/pimcore/classes/`. Demo secrets live only in Railway variables.

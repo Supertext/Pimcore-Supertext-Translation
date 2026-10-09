@@ -49,11 +49,11 @@ final class SupertextController extends AbstractApiController
     {
         $user = $this->user();
         if (!$user->isAllowed(Settings::PERMISSION)) {
-            return $this->error('You are not allowed to translate with Supertext.', 403);
+            return $this->error('You are not allowed to translate with Supertext.', 403, 'not-allowed');
         }
         $element = $this->load($type, $id);
         if (!$element || !$element->isAllowed('view', $user)) {
-            return $this->error('Not found.', 404);
+            return $this->error('Not found.', 404, 'element-not-found');
         }
 
         $common = [
@@ -76,16 +76,16 @@ final class SupertextController extends AbstractApiController
     {
         $user = $this->user();
         if (!$user->isAllowed(Settings::PERMISSION)) {
-            return $this->error('You are not allowed to translate with Supertext.', 403);
+            return $this->error('You are not allowed to translate with Supertext.', 403, 'not-allowed');
         }
         $element = $this->load($type, $id);
         if (!$element || !$element->isAllowed('view', $user)) {
-            return $this->error('Not found.', 404);
+            return $this->error('Not found.', 404, 'element-not-found');
         }
         $payload = json_decode($request->getContent() ?: '[]', true) ?: [];
         $targets = array_values(array_filter((array) ($payload['targets'] ?? []), 'is_string'));
         if ($targets === []) {
-            return $this->error('Choose at least one language to translate into.', 400);
+            return $this->error('Choose at least one language to translate into.', 400, 'choose-target');
         }
         $overwrite = (bool) ($payload['overwrite'] ?? false);
         @set_time_limit(max(300, $this->settings->timeout() * (\count($targets) + 1)));
@@ -97,7 +97,7 @@ final class SupertextController extends AbstractApiController
         } catch (SupertextException $e) {
             $this->logger->warning('Supertext translation failed: ' . $e->getMessage(), ['type' => $type, 'id' => $id]);
 
-            return $this->error($e->getMessage(), 400);
+            return new JsonResponse(['error' => $e->getMessage()] + $e->toArray(), 400);
         } catch (\Throwable $e) {
             $this->logger->error('Supertext translation failed: ' . $e->getMessage(), ['exception' => $e]);
 
@@ -177,8 +177,9 @@ final class SupertextController extends AbstractApiController
         return $element instanceof PageSnippet || $element instanceof Concrete ? $element : null;
     }
 
-    private function error(string $message, int $status): JsonResponse
+    /** @param string $key the UI shows `supertext.error.<key>` (translations/studio.*.yaml) instead of the English message */
+    private function error(string $message, int $status, string $key = ''): JsonResponse
     {
-        return new JsonResponse(['error' => $message], $status);
+        return new JsonResponse(['error' => $message, 'key' => $key], $status);
     }
 }

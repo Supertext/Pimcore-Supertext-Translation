@@ -2,6 +2,8 @@
 
 For editors who translate documents and data objects in Pimcore Studio. Your administrator has installed the bundle, set up the languages and given you the permission *Translate with Supertext* (see the [installation guide](INSTALLATION.md)).
 
+The Supertext button and dialog follow your Pimcore Studio interface language (English, German, French or Italian, set under *My profile*). The messages below are the English texts.
+
 ## Translate a page
 
 1. Open the page in the language you translate **from** (e.g. in the `en` tree) and save your changes. Supertext translates the saved version.

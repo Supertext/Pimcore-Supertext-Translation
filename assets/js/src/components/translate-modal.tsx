@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Checkbox, Modal, Select, Space, Spin, Tag, Text } from '@pimcore/studio-ui-bundle/components'
 import { useTranslation } from '@pimcore/studio-ui-bundle/app'
 import { useElementHelper, useElementRefresh } from '@pimcore/studio-ui-bundle/modules/element'
-import { type ElementInfo, type ElementKind, type LanguageState, type TranslationResult, loadElement, translateElement } from '../api'
+import { type ElementInfo, type ElementKind, type LanguageState, type ServerMessage, type TranslationResult, loadElement, translateElement } from '../api'
 
 interface Props {
   type: ElementKind
@@ -16,6 +16,9 @@ const exists = (type: ElementKind, l: LanguageState): boolean =>
 
 const canTarget = (type: ElementKind, l: LanguageState): boolean =>
   type === 'document' ? (l.allowed === true && l.parentReady === true) : l.editable === true
+
+/** Messages after which the account and API key links follow. */
+const keyHelpAfter = ['auth-failed', 'no-api-key', 'not-configured']
 
 export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element => {
   const { t, i18n } = useTranslation()
@@ -32,6 +35,18 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
   // (it lives in the editor's toolbar) before the results are shown.
   const [changed, setChanged] = useState(false)
 
+  /** The server's message in the user's language (English if its key has no translation). */
+  const describe = (m: ServerMessage): string => {
+    const id = `supertext.error.${m.key ?? ''}`
+    if (m.key === undefined || m.key === '' || !i18n.exists(id)) {
+      return m.message
+    }
+    const text = t(id, { ...m.params, interpolation: { escapeValue: false } }) +
+      (m.detail !== undefined && m.detail !== '' ? ` (${m.detail})` : '')
+
+    return keyHelpAfter.includes(m.key) ? `${text} ${t('supertext.error.key-help')}` : text
+  }
+
   const close = (): void => {
     if (changed) {
       refreshElement(id, true)
@@ -47,7 +62,7 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
       setSource(from)
       setTargets(data.languages.filter(l => l.language !== from && !exists(type, l) && canTarget(type, l)).map(l => l.language))
     } catch (e) {
-      setError((e as Error).message)
+      setError(describe(e as ServerMessage))
     }
   }
 
@@ -82,7 +97,7 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
       }
       await load(source)
     } catch (e) {
-      setError((e as Error).message)
+      setError(describe(e as ServerMessage))
     } finally {
       setBusy(false)
     }
@@ -159,7 +174,7 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
               message={ `${names[r.language] ?? r.language}: ${
                 r.status === 'translated'
                   ? (r.created === true ? t('supertext.result-created') : t('supertext.result-translated'))
-                  : r.status === 'skipped' ? t('supertext.result-skipped') : r.message
+                  : r.status === 'skipped' ? t('supertext.result-skipped') : describe(r)
               }` }
               showIcon
               type={ r.status === 'translated' ? 'success' : r.status === 'skipped' ? 'info' : 'error' }

@@ -27,10 +27,23 @@ export interface ElementInfo {
   languages: LanguageState[]
 }
 
-export interface TranslationResult {
+/** A server message: English `message`, plus `key` (supertext.error.<key>), `params` and Supertext's untranslated `detail` for the UI. */
+export interface ServerMessage {
+  message: string
+  key?: string
+  params?: Record<string, string | number>
+  detail?: string
+}
+
+export class ApiError extends Error implements ServerMessage {
+  constructor (message: string, readonly key?: string, readonly params?: Record<string, string | number>, readonly detail?: string) {
+    super(message)
+  }
+}
+
+export interface TranslationResult extends ServerMessage {
   language: string
   status: 'translated' | 'skipped' | 'error'
-  message: string
   documentId?: number
   path?: string
   created?: boolean
@@ -44,7 +57,12 @@ async function call<T> (path: string, init?: RequestInit): Promise<T> {
   })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(typeof body?.error === 'string' ? body.error : (body?.message ?? `HTTP ${response.status}`))
+    throw new ApiError(
+      typeof body?.error === 'string' ? body.error : (body?.message ?? `HTTP ${response.status}`),
+      typeof body?.key === 'string' ? body.key : undefined,
+      typeof body?.params === 'object' && body.params !== null ? body.params : undefined,
+      typeof body?.detail === 'string' ? body.detail : undefined
+    )
   }
   return body as T
 }
