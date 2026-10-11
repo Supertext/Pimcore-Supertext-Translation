@@ -19,3 +19,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Retries when the Supertext API answers HTTP 429 (rate limit).
 - English and German Studio strings.
 - Demo for Railway (`demo/`) with demo accounts, an Editors role, four languages, sample pages and an article created on every start.
+
+### Fixed
+- Pimcore languages without a region (e.g. `de`, `fr`) are now sent to Supertext as `de-DE`, `fr-FR` (`en` → `en-US`, …); Supertext rejected them as target languages ("invalid language pair"). A configured `code` without region gets the usual one too, codes are normalized (`de_ch` → `de-CH`), and the source language is sent without region, as before.

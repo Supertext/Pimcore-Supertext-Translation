@@ -93,7 +93,7 @@ The bundle translates into the languages set up in Pimcore: **System Settings �
 - **Data objects:** every language here can be translated into, for the class's localized fields.
 - **Documents:** Pimcore keeps one document tree per language, linked as translations. A document's language is its **Language** property (set it on the root page of each language tree; child pages inherit it). Documents without one count as the first language in the list. A new translation is created under the parent page's translation in the target language, so translate the language's root page first (e.g. `/en` into `/de-ch`). Pages directly under *Home* get the target language's code as key (`de-ch`); others get a key made from the translated navigation name or title (`schweizer-schokolade`).
 
-Pimcore's language codes are sent to Supertext as BCP 47 codes: `de_CH` → `de-CH`, `fr` → `fr`. Override the code or set the form of address per language in the bundle configuration (see [Settings](#settings)).
+Pimcore's language codes are sent to Supertext as BCP 47 codes. Supertext needs the target language with a region: a code with one is kept (`de_CH` → `de-CH`), a code without one gets the usual region (`de` → `de-DE`, `fr` → `fr-FR`, `en` → `en-US`, `it` → `it-IT`, …). The source language is sent without region (`en_GB` → `en`). Override the code or set the form of address per language in the bundle configuration (see [Settings](#settings)).
 
 ## Interface languages
 
@@ -121,7 +121,7 @@ The dialog shows languages the user may not edit as *Not allowed*: for data obje
 | `api_url` | `supertext_translation` config | — | Custom API address (overrides `environment`). |
 | `timeout` | `supertext_translation` config | `180` | Seconds to wait for each translation. |
 | `poll_interval` | `supertext_translation` config | `2` | Seconds between status checks. |
-| `languages.<language>.code` | `supertext_translation` config | BCP 47 form of the Pimcore code | Supertext language code for a Pimcore language. |
+| `languages.<language>.code` | `supertext_translation` config | BCP 47 form of the Pimcore code, with the usual region if it has none (`de` → `de-DE`) | Supertext language code for a Pimcore language (wins over the Pimcore code; a code without region gets the usual one). |
 | `languages.<language>.politeness` | `supertext_translation` config | Supertext's default | Form of address: `more` (formal, e.g. *Sie*), `less` (informal, e.g. *du*). |
 | `object_field_types` | `supertext_translation` config | `[input, textarea, wysiwyg]` | Localized field types translated in data objects. |
 | `document_editable_types` | `supertext_translation` config | `[input, textarea, wysiwyg, link]` | Editable types translated in documents (for links, the link text). |

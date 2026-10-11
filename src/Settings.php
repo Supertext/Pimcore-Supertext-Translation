@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Supertext\PimcoreTranslationBundle;
 
+use Supertext\PimcoreTranslationBundle\Api\LanguageCodes;
 use Supertext\PimcoreTranslationBundle\Api\SupertextClient;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -82,12 +83,16 @@ final class Settings
         return (int) $this->config['timeout'];
     }
 
-    /** Supertext language for a Pimcore language: the configured code, else BCP-47 (de_CH -> de-CH). */
+    /** Supertext target code for a Pimcore language: the configured code, else BCP-47 with a region (de_CH -> de-CH, de -> de-DE). */
     public function languageCode(string $language): string
     {
-        $code = trim((string) ($this->config['languages'][$language]['code'] ?? ''));
+        return LanguageCodes::target($language, (string) ($this->config['languages'][$language]['code'] ?? ''));
+    }
 
-        return $code !== '' ? $code : str_replace('_', '-', $language);
+    /** Supertext source code for a Pimcore language: the bare language of the configured code or the language (en_GB -> en). */
+    public function sourceCode(string $language): string
+    {
+        return LanguageCodes::source($language, (string) ($this->config['languages'][$language]['code'] ?? ''));
     }
 
     /** "more", "less" or "" (default). */

@@ -52,7 +52,7 @@ final class SegmentTranslator
         // HtmlDocument works with integer ids; map them back to the caller's keys.
         $keys = array_keys($segments);
         $indexed = array_values($segments);
-        $source = strtolower(explode('-', $this->settings->languageCode($sourceLanguage))[0]);
+        $source = $this->settings->sourceCode($sourceLanguage);
         $out = [];
         foreach (HtmlDocument::chunks($indexed) as $chunk) {
             try {
