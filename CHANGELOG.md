@@ -22,4 +22,5 @@ All notable changes to this project are documented here. The format follows [Kee
 - Demo for Railway (`demo/`) with demo accounts, an Editors role, four languages, sample pages and an article created on every start.
 
 ### Fixed
+- Language codes with a variant or extension, e.g. a configured `code` `de-DE-1996` or `en-US-x-twain`, are now sent to Supertext as `de-DE` / `en-US` (Supertext rejected them).
 - Pimcore languages without a region (e.g. `de`, `fr`) are now sent to Supertext as `de-DE`, `fr-FR` (`en` → `en-US`, …); Supertext rejected them as target languages ("invalid language pair"). A configured `code` without region gets the usual one too, codes are normalized (`de_ch` → `de-CH`), and the source language is sent without region, as before.
