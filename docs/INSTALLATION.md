@@ -164,6 +164,7 @@ bin/console supertext:check
 | A language shows *Translate the parent page first* | Translate the parent page (or the language's root page) into that language first. |
 | A language shows *Not allowed* | The user's workspaces don't allow editing that language or creating the page there. |
 | *Timed out waiting for the Supertext translation.* | Raise `timeout`; check that the server reaches `api.supertext.com`. |
+| *Supertext does not support this language pair (en → xx-YY).* | The Pimcore language (or its `code` under `supertext_translation.languages`) isn't one Supertext offers. Set the `code` to a code such as `de-CH` or `fr`; the message shows the codes that were sent. |
 | *Too many requests to Supertext.* | The bundle retries automatically; if it persists, try again in a moment. |
 | *Your Supertext translation limit is exceeded.* | Your Supertext subscription's limit is used up; contact Supertext. |
 

@@ -6,4 +6,4 @@ set -e
 cd "$(dirname "$0")/.."
 rm -rf demo/module
 mkdir -p demo/module
-cp -R composer.json config public src translations demo/module/
+cp -R composer.json config lib public src translations demo/module/

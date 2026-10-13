@@ -22,6 +22,7 @@ COPY demo/docker/apache.conf /etc/apache2/sites-available/000-default.conf
 WORKDIR /app
 COPY composer.json /app/demo/module/
 COPY config /app/demo/module/config
+COPY lib /app/demo/module/lib
 COPY public /app/demo/module/public
 COPY src /app/demo/module/src
 COPY translations /app/demo/module/translations

@@ -90,6 +90,7 @@ Every translation is recorded as a note of type *supertext* on the original docu
 | *This document has no text to translate.* / *The object has no … text to translate from.* | The page or the chosen *From* language is empty. |
 | *Authentication failed. Please check the Supertext API key.* | The API key is wrong. Ask your administrator. |
 | *Your Supertext translation limit is exceeded.* | Your organisation's Supertext limit is used up. |
+| *Supertext does not support this language pair (en → …).* | Supertext can't translate into this language, or its Supertext language code is wrong. Tell your administrator. |
 | *Too many requests to Supertext. Please try again shortly.* | Supertext was busy; try again in a moment. |
 | *Timed out waiting for the Supertext translation.* / *The Supertext service is currently unavailable.* | Supertext took too long or is unavailable. Try again later. |
 

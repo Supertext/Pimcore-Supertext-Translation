@@ -7,7 +7,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - French and Italian interface (and German where it was missing): the Studio button, dialog, permission label and the messages from the server (Supertext errors, permissions, missing parent page) follow the user's Studio language.
-- First version for Pimcore 2026 with Pimcore Studio.
+- First version for Pimcore 2026 with Pimcore Studio. All Supertext API calls go through the official Supertext PHP SDK, shipped inside the bundle (nothing extra to install).
+- Its own message for an unsupported language pair, naming the codes ("Supertext does not support this language pair (en → xx-YY)"), in English, German, French and Italian.
 - **Translate with Supertext** button in the toolbar of documents (pages, snippets, e-mails) and data objects, with a dialog: languages to translate into, "Already translated" / "Translated with Supertext on …" per language and an explicit *Overwrite existing translations* option.
 - Documents: title, description, navigation name and title, and the texts of input, textarea, WYSIWYG and link editables are translated. Missing translations are created unpublished under the parent page's translation and linked to the original, with keys made from the translated navigation name; existing ones get a new version.
 - Data objects: localized input, textarea and WYSIWYG fields, from any language that has text, saved as a new version.

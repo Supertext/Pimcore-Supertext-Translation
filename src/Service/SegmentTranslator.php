@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Supertext\PimcoreTranslationBundle\Service;
 
-use Supertext\PimcoreTranslationBundle\Api\HtmlDocument;
 use Supertext\PimcoreTranslationBundle\Api\SupertextClient;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
 use Supertext\PimcoreTranslationBundle\Settings;
 
 /**
  * Sends values to Supertext as one HTML document per target language (one data-st-id
- * element per value; chunked below the API's size limit) and returns the translations.
+ * element per value; split below the API's size limit by the Supertext SDK) and returns
+ * the translations.
  */
 final class SegmentTranslator
 {
@@ -49,28 +49,15 @@ final class SegmentTranslator
         $this->assertConfigured();
         $client = $this->client ?? $this->settings->client();
 
-        // HtmlDocument works with integer ids; map them back to the caller's keys.
-        $keys = array_keys($segments);
-        $indexed = array_values($segments);
-        $source = $this->settings->sourceCode($sourceLanguage);
-        $out = [];
-        foreach (HtmlDocument::chunks($indexed) as $chunk) {
-            try {
-                $html = $client->translateDocument(
-                    HtmlDocument::build($chunk),
-                    $this->settings->languageCode($targetLanguage),
-                    $source,
-                    $this->settings->politeness($targetLanguage) ?: 'default'
-                );
-            } catch (SupertextException $e) {
-                throw Settings::withKeyHelp($e);
-            }
-            $isHtml = array_map(static fn (array $s): bool => $s['html'], $chunk);
-            foreach (HtmlDocument::parse($html, $isHtml) as $i => $translation) {
-                $out[$keys[$i]] = $translation;
-            }
+        try {
+            return $client->translateSegments(
+                $segments,
+                $this->settings->languageCode($targetLanguage),
+                $this->settings->sourceCode($sourceLanguage),
+                $this->settings->politeness($targetLanguage) ?: 'default'
+            );
+        } catch (SupertextException $e) {
+            throw Settings::withKeyHelp($e);
         }
-
-        return $out;
     }
 }

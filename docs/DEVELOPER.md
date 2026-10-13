@@ -12,7 +12,8 @@ A Symfony bundle (`Supertext\PimcoreTranslationBundle`) with a Pimcore Studio UI
 | `src/Installer/Installer.php` | Adds (and on uninstall removes) the permission `supertext_translate` in the category *Supertext* |
 | `src/DependencyInjection/` | Configuration tree `supertext_translation` (see the settings table in the installation guide) |
 | `src/Settings.php` | Reads the configuration and `SUPERTEXT_API_KEY` / `SUPERTEXT_API_URL`, maps Pimcore languages to Supertext codes, builds the API client (Symfony HttpClient transport), the account and API key links |
-| `src/Api/` | API client, HTML document packing and parsing, exception. No Pimcore or Symfony classes: unit-tested on their own, shared with the other Supertext PHP plugins |
+| `src/Api/` | Wrapper around the Supertext SDK (`SupertextClient`, `CallableTransport`), language codes, exception. No Pimcore or Symfony classes: unit-tested on their own |
+| `lib/supertext-sdk/` | Bundled copy of the Supertext PHP SDK, namespace `Supertext\PimcoreTranslationBundle\Sdk` (see *Supertext SDK*) |
 | `src/Service/SegmentTranslator.php` | Sends a set of texts for one language pair, in chunks below the API's size limit |
 | `src/Service/DocumentTranslator.php` | Documents: texts of a page, creating or updating its linked translation |
 | `src/Service/ObjectTranslator.php` | Data objects: the localized fields of one language into others |
@@ -69,11 +70,21 @@ Each text is one `<div data-st-id="n">` element in the document, so it is transl
 
 **Rate limit:** the API limits requests per second per key (HTTP 429). The client retries a 429 up to 4 times, waiting for `Retry-After` if sent, otherwise 1, 2, 4 and 8 seconds plus jitter. Target languages are translated one after the other.
 
+## Supertext SDK
+
+The protocol above, the retries, the language codes and the `data-st-id` document come from the official Supertext PHP SDK ([Supertext/Supertext-API-SDK-and-Guide](https://github.com/Supertext/Supertext-API-SDK-and-Guide)). The bundle ships a copy in `lib/supertext-sdk/` with its namespace changed from `Supertext\Sdk` to `Supertext\PimcoreTranslationBundle\Sdk` (Composer autoloads it from the bundle's `composer.json`; `tests/bootstrap.php` too), so sites install nothing extra and another package that requires the SDK itself can't clash with it. `lib/supertext-sdk/COMMIT` names the SDK revision.
+
+- Never edit `lib/supertext-sdk/`. Fix the SDK in its repository, then run `scripts/vendor-sdk.sh [ref]` (default `main`; `SDK_DIR=/path/to/clone` uses a local clone) and the tests.
+- `src/Api/SupertextClient.php` keeps the bundle's interface (`translateDocument`, `translateSegments`, `validateApiKey`, transport callable) and turns every SDK error code into a `SupertextException` with a `key` (`KEYS`) and `params`. A new SDK error code needs a key there and `supertext.error.<key>` in all four `translations/studio.*.yaml`.
+- PHPStan analyses `src/` only; the SDK has its own checks in its repository.
+- Segments missing from Supertext's answer are left untouched.
+- The live API answers an unknown language (`xx-YY`) with HTTP 404 `INVALID_LANGUAGE_PAIR`; the SDK reports it as `invalid_language_pair` with both codes (key `invalid-language-pair`, params `source` and `target`).
+
 ## Language codes
 
 Supertext wants the **source as a bare language** (`en`, `de`, `fr`) and the **target as a regional code** (`de-DE`, `fr-CH`, `en-US`). A bare target such as `de`, or a regional source such as `en-US`, is rejected with `INVALID_LANGUAGE_PAIR`. Translating within one language (`en` → `en-GB`) is allowed.
 
-`src/Api/LanguageCodes.php` (no CMS dependency, `tests/unit/LanguageCodesTest.php`) turns locales into the codes sent:
+`src/Api/LanguageCodes.php` (the SDK's `LanguageCodes` plus the configured code; no CMS dependency, `tests/unit/LanguageCodesTest.php`) turns locales into the codes sent:
 
 - **Source:** the bare language of the source language's `languages.<language>.code`, else of the Pimcore language (`en_GB` → `en`, `en` → `en`).
 - **Target:** the target language's `languages.<language>.code` if set, else the Pimcore language. Either way, a code with a region keeps it, normalized (`de_CH`/`de-ch` → `de-CH`; scripts and numeric regions such as `zh-Hant`, `es-419` keep their form); a bare language gets its default region: ar→ar-SA, bg→bg-BG, cs→cs-CZ, da→da-DK, de→de-DE, el→el-GR, en→en-US, es→es-ES, et→et-EE, fi→fi-FI, fr→fr-FR, hr→hr-HR, hu→hu-HU, it→it-IT, ja→ja-JP, ko→ko-KR, lt→lt-LT, lv→lv-LV, nb→nb-NO, nl→nl-NL, pl→pl-PL, pt→pt-PT, ro→ro-RO, ru→ru-RU, sk→sk-SK, sl→sl-SI, sr→sr-RS, sv→sv-SE, th→th-TH, tr→tr-TR, uk→uk-UA, vi→vi-VN, zh→zh-CN (same table as the other Supertext plugins). Unknown bare codes are sent unchanged, so Supertext's error names them.
@@ -127,9 +138,8 @@ phpunit            # or vendor/bin/phpunit after composer install
 cd assets && npm run check-types && npm run build
 ```
 
-- `tests/unit/SupertextClientTest.php`: the API protocol, auth header and prefix, 429 retries, errors, clean-up.
+- `tests/unit/SupertextClientTest.php`: the SDK wrapper: protocol, auth header and prefix, 429 retries, error keys (language pair included), clean-up, segments (plain text, HTML, blank, missing) and splitting into several documents.
 - `tests/unit/StudioTranslationsTest.php`: the four `studio.*.yaml` files have the same keys, `{{placeholders}}` and links, and every error key the PHP code sends has an English text.
-- `tests/unit/HtmlDocumentTest.php`, `tests/unit/ChunksTest.php`: document packing and parsing, whitespace, splitting below the size limit.
 - `tests/demo-check.sh` (CI): the demo image on MySQL and OpenSearch with the stand-in, started twice: demo accounts created once and never duplicated, no passwords in the log, the Editors role and the permission, `supertext:check`, the parent-page rule, translation of the sample pages and article as the editor into three languages (titles, slug keys, HTML with markup, link texts, unpublished pages, linked translations, notes), and the skip on a second run.
 
 CI (`.github/workflows/ci.yml`) on every push and pull request: **test** (PHP lint, PHPUnit), **phpstan** (see *Code quality and security checks*), **studio** (type check and build of the plugin) and **demo** (builds `demo/Dockerfile`, runs `tests/demo-check.sh`). The demo job needs the repository secrets `PIMCORE_ENCRYPTION_SECRET`, `PIMCORE_INSTANCE_IDENTIFIER` and `PIMCORE_PRODUCT_KEY`, and skips itself without them (e.g. for pull requests from forks).
