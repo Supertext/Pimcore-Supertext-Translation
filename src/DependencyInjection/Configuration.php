@@ -12,9 +12,11 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
  *       environment: live            # live | staging | testing
  *       api_url: ''                  # custom base URL; SUPERTEXT_API_URL wins
  *       timeout: 180                 # seconds per language
- *       languages:                   # per Pimcore language
- *           de_CH: { politeness: more }
+ *       version_reports: true        # "Send version information to Supertext"; SUPERTEXT_VERSION_REPORTS wins
+ *       languages:                   # per Pimcore language: the Supertext code (needed unless the
+ *           de_CH: { politeness: more }  # Pimcore code is one, e.g. de_CH, es) and the tone
  *           fr: { code: fr-CH, politeness: less }
+ *           en: { code: en-US }
  *       object_field_types: [input, textarea, wysiwyg]
  *       document_editable_types: [input, textarea, wysiwyg, link]
  */
@@ -29,6 +31,7 @@ final class Configuration implements ConfigurationInterface
                 ->scalarNode('api_url')->defaultValue('')->end()
                 ->integerNode('timeout')->min(10)->defaultValue(180)->end()
                 ->floatNode('poll_interval')->min(0)->defaultValue(2.0)->end()
+                ->booleanNode('version_reports')->defaultTrue()->end()
                 ->arrayNode('languages')
                     ->useAttributeAsKey('language')
                     ->arrayPrototype()

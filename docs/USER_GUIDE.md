@@ -90,8 +90,12 @@ Every translation is recorded as a note of type *supertext* on the original docu
 | *This document has no text to translate.* / *The object has no … text to translate from.* | The page or the chosen *From* language is empty. |
 | *Authentication failed. Please check the Supertext API key.* | The API key is wrong. Ask your administrator. |
 | *Your Supertext translation limit is exceeded.* | Your organisation's Supertext limit is used up. |
-| *Supertext does not support this language pair (en → …).* | Supertext can't translate into this language, or its Supertext language code is wrong. Tell your administrator. |
+| *No Supertext language* (next to a language) / *The language … has no Supertext language yet.* | Your administrator hasn't told the bundle which Supertext language to use for it, so it can't be selected. Ask them to map it; the other languages are translated. |
+| *No formal/informal tone* (next to a language) / *Supertext offers no formal or informal tone for this language.* | A formal or informal tone is set for this language, but Supertext doesn't offer one for it (e.g. English). Ask your administrator to remove the tone setting. |
+| *Supertext does not support this language pair (en → …).* | Supertext can't translate into this language, or its Supertext language code is wrong. Tell your administrator to check the language mapping. |
 | *Too many requests to Supertext. Please try again shortly.* | Supertext was busy; try again in a moment. |
 | *Timed out waiting for the Supertext translation.* / *The Supertext service is currently unavailable.* | Supertext took too long or is unavailable. Try again later. |
 
 Errors are reported per language: if one language fails, the others are still translated.
+
+Administrators also see a short **Supertext status** at the bottom of the dialog: the latest check of the API key with its time, the languages without a Supertext language, and whether version information is sent to Supertext (see the [installation guide](INSTALLATION.md#version-information-api-key-check-and-ping)).

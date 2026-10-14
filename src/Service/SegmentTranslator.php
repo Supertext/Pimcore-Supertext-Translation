@@ -4,20 +4,23 @@ declare(strict_types=1);
 
 namespace Supertext\PimcoreTranslationBundle\Service;
 
+use Supertext\PimcoreTranslationBundle\Api\InstallationReports;
 use Supertext\PimcoreTranslationBundle\Api\SupertextClient;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
+use Supertext\PimcoreTranslationBundle\Reporting\Reporting;
 use Supertext\PimcoreTranslationBundle\Settings;
 
 /**
  * Sends values to Supertext as one HTML document per target language (one data-st-id
  * element per value; split below the API's size limit by the Supertext SDK) and returns
- * the translations.
+ * the translations. Languages are resolved without guessing (Settings::languageCode(): the mapping,
+ * else an exact Supertext code, else `unsupported-language` and nothing is sent).
  */
 final class SegmentTranslator
 {
     private ?SupertextClient $client = null;
 
-    public function __construct(private readonly Settings $settings)
+    public function __construct(private readonly Settings $settings, private readonly ?Reporting $reporting = null)
     {
     }
 
@@ -49,14 +52,17 @@ final class SegmentTranslator
         $this->assertConfigured();
         $client = $this->client ?? $this->settings->client();
 
+        $target = $this->settings->languageCode($targetLanguage);
+        $source = $this->settings->sourceCode($sourceLanguage);
+        $politeness = $this->settings->politenessFor($targetLanguage, $target);
+
         try {
-            return $client->translateSegments(
-                $segments,
-                $this->settings->languageCode($targetLanguage),
-                $this->settings->sourceCode($sourceLanguage),
-                $this->settings->politeness($targetLanguage) ?: 'default'
-            );
+            return $client->translateSegments($segments, $target, $source, $politeness);
         } catch (SupertextException $e) {
+            if (\in_array($e->getCode(), [401, 403], true)) {
+                // The key was rejected: the Commando Center hears about it once (after the response).
+                $this->reporting?->later(InstallationReports::AUTHENTICATION_FAILED, $e->getCode());
+            }
             throw Settings::withKeyHelp($e);
         }
     }

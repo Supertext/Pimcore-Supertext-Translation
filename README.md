@@ -9,7 +9,8 @@ Open a page or a data object, click **Translate with Supertext** in the toolbar,
 - New translations get keys (URLs) made from the translated navigation name
 - Existing translations are kept unless the editor explicitly overwrites them; everything is saved as a draft or new version
 - A permission *Translate with Supertext*; Pimcore's workspaces and language restrictions apply
-- Formal or informal tone and custom Supertext language codes per language; console commands for scripts
+- A language mapping to Supertext's languages (no guessed codes) and formal or informal tone per language; console commands for scripts
+- Automatic API key check and optional version information to Supertext (on by default, no content or personal data)
 
 ![The "Translate with Supertext" dialog in Pimcore Studio: From English, Into German, French and Italian (Switzerland)](docs/images/document-translate-dialog.png)
 

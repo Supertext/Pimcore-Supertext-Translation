@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Checkbox, Modal, Select, Space, Spin, Tag, Text } from '@pimcore/studio-ui-bundle/components'
 import { useTranslation } from '@pimcore/studio-ui-bundle/app'
 import { useElementHelper, useElementRefresh } from '@pimcore/studio-ui-bundle/modules/element'
-import { type ElementInfo, type ElementKind, type LanguageState, type ServerMessage, type TranslationResult, loadElement, translateElement } from '../api'
+import { type ElementInfo, type ElementKind, type KeyCheck, type LanguageState, type ServerMessage, type TranslationResult, loadElement, translateElement } from '../api'
 
 interface Props {
   type: ElementKind
@@ -14,8 +14,11 @@ interface Props {
 const exists = (type: ElementKind, l: LanguageState): boolean =>
   type === 'document' ? l.documentId != null : l.hasContent === true
 
+/** Languages without a Supertext code, or with a tone Supertext doesn't offer, can't be translated into. */
+const supported = (l: LanguageState): boolean => l.supertext !== null && l.toneUnavailable !== true
+
 const canTarget = (type: ElementKind, l: LanguageState): boolean =>
-  type === 'document' ? (l.allowed === true && l.parentReady === true) : l.editable === true
+  supported(l) && (type === 'document' ? (l.allowed === true && l.parentReady === true) : l.editable === true)
 
 /** Messages after which the account and API key links follow. */
 const keyHelpAfter = ['auth-failed', 'no-api-key', 'not-configured']
@@ -105,9 +108,24 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
 
   const date = (ts: number): string => new Date(ts * 1000).toLocaleDateString(i18n.language)
 
+  const when = (iso: string): string => {
+    const d = new Date(iso)
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(i18n.language)
+  }
+
+  /** The key check in the user's language (the Commando Center's texts). */
+  const checkText = (c: KeyCheck): string =>
+    t(`supertext.keycheck.${c.status}`, { status: c.httpStatus ?? c.errorCode ?? '', interpolation: { escapeValue: false } })
+
   const marker = (l: LanguageState): React.JSX.Element | null => {
     if (l.lastTranslation != null) {
       return <Tag>{ t('supertext.translated-on', { date: date(l.lastTranslation), interpolation: { escapeValue: false } }) }</Tag>
+    }
+    if (l.supertext === null) {
+      return <Tag className="supertext-not-mapped" color="orange">{ t('supertext.not-mapped') }</Tag>
+    }
+    if (l.toneUnavailable === true) {
+      return <Tag color="orange">{ t('supertext.tone-unavailable') }</Tag>
     }
     if (exists(type, l)) {
       return <Tag>{ t('supertext.already-translated') }</Tag>
@@ -234,6 +252,43 @@ export const TranslateModal = ({ type, id, onClose }: Props): React.JSX.Element 
           ) }
           <Text type="secondary">{ type === 'document' ? t('supertext.hint-document') : t('supertext.hint-object') }</Text>
         </Space>
+      ) }
+
+      { info?.status !== undefined && results === null && (
+        <div className="supertext-status" style={ { marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(0, 0, 0, 0.06)' } }>
+          <Text strong>{ t('supertext.status.title') }</Text>
+          <div>
+            <Text type="secondary">{ t('supertext.status.key-check') }: </Text>
+            { info.status.check === null
+              ? <Text>{ t('supertext.status.not-checked') }</Text>
+              : (
+                <>
+                  <Text type={ info.status.check.status === 'ok' ? 'success' : 'danger' }>{ checkText(info.status.check) }</Text>
+                  { (info.status.check.status === 'invalid' || info.status.check.status === 'missing') && (
+                    <>
+                      { ' ' }
+                      <a href={ info.signupUrl } rel="noopener" target="_blank">{ t('supertext.signup') }</a>{ ' · ' }
+                      <a href={ info.apiKeyUrl } rel="noopener" target="_blank">{ t('supertext.api-key') }</a>
+                    </>
+                  ) }
+                  { ' ' }<Text type="secondary">({ t('supertext.status.checked-at', { time: when(info.status.check.checkedAt), interpolation: { escapeValue: false } }) })</Text>
+                </>
+                ) }
+          </div>
+          { languages.some(l => l.supertext === null) && (
+            <div>
+              <Text type="warning">
+                { t('supertext.status.unmapped', { languages: languages.filter(l => l.supertext === null).map(l => l.language).join(', '), interpolation: { escapeValue: false } }) }
+              </Text>
+            </div>
+          ) }
+          <div>
+            <Text type="secondary">{ t('supertext.status.reports') }: </Text>
+            <Text>{ info.status.reports ? t('supertext.status.on') : t('supertext.status.off') }</Text>
+            { info.status.reportsFromEnvironment && <Text type="secondary"> (SUPERTEXT_VERSION_REPORTS)</Text> }
+          </div>
+          <Text type="secondary" style={ { fontSize: 12 } }>{ t('supertext.status.reports-help') }</Text>
+        </div>
       ) }
     </Modal>
   )

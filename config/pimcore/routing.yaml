@@ -2,3 +2,8 @@ supertext_translation_api:
     resource: "../../src/Controller/"
     type: attribute
     prefix: '%pimcore_studio_backend.url_prefix%'
+
+# Public (no login): the Commando Center's ping, /supertext/ping
+supertext_translation_ping:
+    resource: "../../src/Ping/"
+    type: attribute

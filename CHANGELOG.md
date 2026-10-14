@@ -21,6 +21,17 @@ All notable changes to this project are documented here. The format follows [Kee
 - English and German Studio strings.
 - Demo for Railway (`demo/`) with demo accounts, an Editors role, four languages, sample pages and an article created on every start.
 
-### Fixed
-- Language codes with a variant or extension, e.g. a configured `code` `de-DE-1996` or `en-US-x-twain`, are now sent to Supertext as `de-DE` / `en-US` (Supertext rejected them).
-- Pimcore languages without a region (e.g. `de`, `fr`) are now sent to Supertext as `de-DE`, `fr-FR` (`en` → `en-US`, …); Supertext rejected them as target languages ("invalid language pair"). A configured `code` without region gets the usual one too, codes are normalized (`de_ch` → `de-CH`), and the source language is sent without region, as before.
+### Changed
+
+- **Languages are no longer guessed.** A Pimcore language whose code is a Supertext code (`de_CH` → `de-CH`, `fr_CH`, `es`, `zh_Hans`, apart from case and `_`/`-`) is used as it is; every other language needs a Supertext code in the language mapping (`supertext_translation.languages.<language>.code`, e.g. `en: { code: en-GB }`). There are no default regions any more: they were wrong for most languages (Supertext wants `es`, `sl`, `nl` without region, `zh-Hans` instead of `zh-CN`, and rejects bare `de`). The same mapping gives the source language (bare: `en-GB` → `en`). An unmapped language shows *No Supertext language* in the dialog and can't be selected; translating into it reports *has no Supertext language yet* and sends nothing. `supertext:check` lists the mapping and marks unmapped languages.
+- A formal/informal tone configured for a language Supertext offers none for (English, Swiss German, Romansh, Albanian, Serbian) is no longer sent: the dialog marks the language *No formal/informal tone*, and translating into it reports *Supertext offers no formal or informal tone for this language*.
+- `POST /supertext/settings/test` returns the API key check (`{ok, check, message}`, always HTTP 200 for administrators).
+- Bundled Supertext SDK 0.2.1 (commit `eeba8fa`, `V1` namespace): the API's language list, the key check and the version reports.
+
+### Added
+
+- Automatic API key check (Supertext's cost-free `features` call): when the bundle runs with a key it hasn't checked yet, when Supertext rejects the key during a translation, and on `supertext:check`. Administrators see the latest result with its time at the bottom of the translate dialog (*Supertext status*), together with unmapped languages and the version information setting, in English, German, French and Italian.
+- *Send version information to Supertext* (`version_reports`, on by default; `SUPERTEXT_VERSION_REPORTS=0` turns it off): after an update and when the key check result changes, the bundle sends the site URL, the bundle, Pimcore, PHP and SDK versions, whether a key is set, the key check result and the ping address to the Supertext Commando Center, after the response. No content, no API key and no personal data. `supertext:check` sends a `check` report.
+- Public ping endpoint `GET /supertext/ping` that only echoes Supertext's challenge, so Supertext can check the site is reachable (404 with version information off).
+- The bundle keeps this state in Pimcore's settings store (scope `supertext_translation`).
+- New messages *The language … has no Supertext language yet* and *Supertext offers no formal or informal tone for this language* in all four interface languages.

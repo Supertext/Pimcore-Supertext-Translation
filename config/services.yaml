@@ -16,6 +16,11 @@ services:
         public: true
         tags: ['controller.service_arguments']
 
+    Supertext\PimcoreTranslationBundle\Ping\:
+        resource: '../src/Ping/'
+        public: true
+        tags: ['controller.service_arguments']
+
     Supertext\PimcoreTranslationBundle\Installer\Installer:
         public: true
         arguments:

@@ -36,7 +36,7 @@ final class SupertextClientTest extends TestCase
             };
         });
 
-        $html = $client->translateDocument('<div data-st-id="0">Hello</div>', 'de-CH', 'en-GB', 'more');
+        $html = $client->translateDocument('<div data-st-id="0">Hello</div>', 'de-CH', 'en', 'more');
 
         self::assertStringContainsString('Hallo', $html);
         self::assertSame(
@@ -53,19 +53,44 @@ final class SupertextClientTest extends TestCase
         self::assertStringContainsString("filename=\"content.html\"\r\nContent-Type: text/html\r\n\r\n<div", $post['body']);
     }
 
-    public function testSendsBareTargetsWithTheirDefaultRegion(): void
+    public function testSendsTheCodesAsGiven(): void
     {
         $client = $this->client(fn (string $method, string $url) => match (true) {
             $method === 'POST'                  => ['status' => 200, 'body' => '{"file_id":"f1"}'],
             str_ends_with($url, '/status')      => ['status' => 200, 'body' => '{"status":"done"}'],
-            str_ends_with($url, '/translation') => ['status' => 200, 'body' => '<div data-st-id="0">Hallo</div>'],
+            str_ends_with($url, '/translation') => ['status' => 200, 'body' => '<div data-st-id="0">Hola</div>'],
             default                             => ['status' => 200, 'body' => '{}'],
         });
 
-        $client->translateDocument('<div data-st-id="0">Hello</div>', 'de', 'en_US');
+        // No default regions any more: "es" is the Supertext code for Spanish.
+        $client->translateDocument('<div data-st-id="0">Hello</div>', 'es', 'en');
 
-        self::assertStringContainsString("name=\"target_lang\"\r\n\r\nde-DE\r\n", $this->calls[0]['body']);
+        self::assertStringContainsString("name=\"target_lang\"\r\n\r\nes\r\n", $this->calls[0]['body']);
         self::assertStringContainsString("name=\"source_lang\"\r\n\r\nen\r\n", $this->calls[0]['body']);
+    }
+
+    public function testReportsAnUnsupportedTone(): void
+    {
+        $client = $this->client(fn () => ['status' => 400, 'body' => '{"error_code":"FEATURE_ERROR","feature":"politeness","source_lang":"de","target_lang":"en-US"}']);
+
+        try {
+            $client->translateDocument('<p>x</p>', 'en-US', 'de', 'more');
+            self::fail('Expected an exception');
+        } catch (SupertextException $e) {
+            self::assertSame('unsupported-feature', $e->key);
+        }
+    }
+
+    public function testChecksTheKeyWithoutThrowing(): void
+    {
+        $client = $this->client(fn () => ['status' => 401, 'body' => '{"error_code":"UNAUTHORIZED"}']);
+        $check = $client->checkApiKey();
+
+        self::assertSame('invalid', $check->status);
+        self::assertSame(401, $check->httpStatus);
+        self::assertStringEndsWith('/v1/features', $this->calls[0]['url']);
+
+        self::assertSame('missing', $this->client(fn () => ['status' => 200, 'body' => '{}'], '')->checkApiKey()->status);
     }
 
     public function testAcceptsTheKeyWithItsPrefix(): void

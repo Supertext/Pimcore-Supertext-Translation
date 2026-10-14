@@ -14,6 +14,25 @@ export interface LanguageState {
   hasContent?: boolean
   editable?: boolean
   lastTranslation: number | null
+  /** The Supertext target code it is sent as; null: not mapped (can't be translated into). */
+  supertext?: string | null
+  /** A formal/informal tone is configured, but Supertext offers none for this language. */
+  toneUnavailable?: boolean
+}
+
+/** The automatic API key check (Commando Center), latest result. */
+export interface KeyCheck {
+  status: 'ok' | 'invalid' | 'missing' | 'unreachable' | 'error'
+  checkedAt: string
+  httpStatus: number | null
+  errorCode: string | null
+}
+
+/** Administrators only. */
+export interface SupertextStatus {
+  check: KeyCheck | null
+  reports: boolean
+  reportsFromEnvironment: boolean
 }
 
 export interface ElementInfo {
@@ -22,6 +41,7 @@ export interface ElementInfo {
   signupUrl: string
   apiKeyUrl: string
   isAdmin: boolean
+  status?: SupertextStatus
   source?: string
   fields?: string[]
   languages: LanguageState[]

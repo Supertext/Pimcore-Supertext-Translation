@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # CI: starts the demo image twice against MySQL and OpenSearch with the stand-in API, checks the
 # demo accounts (created once, never duplicated, passwords never logged) and translates the sample
-# pages and article as the editor. Needs: docker image supertext-pimcore-demo, MySQL at $MYSQL_URL
+# pages and article as the editor, and the Commando Center parts (public ping, one report to the
+# stand-in's POST /report, never to the live center). Needs: docker image supertext-pimcore-demo, MySQL at $MYSQL_URL
 # (root), OpenSearch on 127.0.0.1:9200, the `mysql` client, the stand-in on 127.0.0.1:8765, and
 # PIMCORE_ENCRYPTION_SECRET / PIMCORE_INSTANCE_IDENTIFIER / PIMCORE_PRODUCT_KEY.
 set -euo pipefail
@@ -21,7 +22,8 @@ start() {
 		-e APPLICATION_SECRET -e MERCURE_JWT_KEY \
 		-e PIMCORE_ENCRYPTION_SECRET -e PIMCORE_INSTANCE_IDENTIFIER -e PIMCORE_PRODUCT_KEY \
 		-e DEMO_ADMIN_EMAIL -e DEMO_ADMIN_PASSWORD -e DEMO_EDITOR_EMAIL -e DEMO_EDITOR_PASSWORD \
-		-e SUPERTEXT_API_KEY=anything -e SUPERTEXT_API_URL=http://127.0.0.1:8765/v1/ supertext-pimcore-demo >/dev/null
+		-e SUPERTEXT_API_KEY=anything -e SUPERTEXT_API_URL=http://127.0.0.1:8765/v1/ \
+		-e SUPERTEXT_REPORT_URL=http://127.0.0.1:8765/report supertext-pimcore-demo >/dev/null
 	for _ in $(seq 180); do curl -sf -o /dev/null $B/pimcore-studio/ && break; sleep 3; done
 	curl -sf -o /dev/null $B/pimcore-studio/
 	docker logs demo 2>&1 | grep '\[demo\]' || true
@@ -40,7 +42,31 @@ q "select permissions from users where type='role' and name='Editors'" | grep > 
 test "$(q "select count(*) from users_permission_definitions where \`key\`='supertext_translate'")" = 1
 echo "accounts and permission OK"
 
-console supertext:check | grep > /dev/null 'The API key works'
+console supertext:check | tee /tmp/check.log
+grep -qF 'API key checked: the connection to Supertext works.' /tmp/check.log
+grep -qF 'de_CH → de-CH (more)' /tmp/check.log
+grep -qF 'en → en-GB' /tmp/check.log
+
+# Commando Center: the public ping (no login), and an "installed" report after a back-end request.
+ping=$(curl -s -w ' %{http_code}' "$B/supertext/ping?challenge=ci-challenge-0123456789")
+test "$ping" = '{"ok":true,"plugin":"Pimcore-Supertext-Translation","challenge":"ci-challenge-0123456789"} 200'
+test "$(curl -s -o /dev/null -w '%{http_code}' "$B/supertext/ping?challenge=x")" = 400
+jar=$(mktemp)
+curl -sf -c "$jar" -b "$jar" -H 'Content-Type: application/json' \
+	-d "{\"username\":\"$DEMO_ADMIN_EMAIL\",\"password\":\"$DEMO_ADMIN_PASSWORD\"}" $B/pimcore-studio/api/login > /dev/null
+settings=$(curl -sf -b "$jar" $B/pimcore-studio/api/supertext/settings)
+grep -qF '"reports":true' <<< "$settings"
+grep -qF '"code":"de-CH"' <<< "$settings"
+for _ in $(seq 10); do
+	state=$(q "select data from settings_store where id='reporter' and scope='supertext_translation'")
+	grep -qF '"reportedVersions":"' <<< "$state" && break
+	sleep 1
+done
+grep -qF '"reportedVersions":"' <<< "$state"
+grep -qF '"status":"ok"' <<< "$state"
+if grep -qF 'anything' <<< "$state"; then echo "The API key appeared in the stored state"; exit 1; fi
+rm -f "$jar"
+echo "Commando Center OK"
 # The product page needs its parent's translation first.
 out=$(console supertext:translate --document=/en/swiss-chocolate --user=ci-editor@example.com 2>&1 || true)
 grep -qF 'Translate the parent page into this language first' <<< "$out"

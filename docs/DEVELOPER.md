@@ -11,9 +11,11 @@ A Symfony bundle (`Supertext\PimcoreTranslationBundle`) with a Pimcore Studio UI
 | `src/SupertextTranslationBundle.php` | The bundle (`AbstractPimcoreBundle`, installer from the container) |
 | `src/Installer/Installer.php` | Adds (and on uninstall removes) the permission `supertext_translate` in the category *Supertext* |
 | `src/DependencyInjection/` | Configuration tree `supertext_translation` (see the settings table in the installation guide) |
-| `src/Settings.php` | Reads the configuration and `SUPERTEXT_API_KEY` / `SUPERTEXT_API_URL`, maps Pimcore languages to Supertext codes, builds the API client (Symfony HttpClient transport), the account and API key links |
-| `src/Api/` | Wrapper around the Supertext SDK (`SupertextClient`, `CallableTransport`), language codes, exception. No Pimcore or Symfony classes: unit-tested on their own |
-| `lib/supertext-sdk/` | Bundled copy of the Supertext PHP SDK, namespace `Supertext\PimcoreTranslationBundle\Sdk` (see *Supertext SDK*) |
+| `src/Settings.php` | Reads the configuration and `SUPERTEXT_API_KEY` / `SUPERTEXT_API_URL` / `SUPERTEXT_VERSION_REPORTS` / `SUPERTEXT_REPORT_URL` (`Settings::env()`: `$_SERVER`/`$_ENV` from Symfony's `.env` files, else the process environment), the language mapping, builds the API client and the SDK transport (Symfony HttpClient), the account and API key links |
+| `src/Api/` | Wrapper around the Supertext SDK (`SupertextClient`, `CallableTransport`), language codes (`LanguageCodes`), the Commando Center glue (`InstallationReports`), exception. No Pimcore or Symfony classes: unit-tested on their own |
+| `src/Reporting/Reporting.php` | The Pimcore side of the Commando Center: state in the settings store, site URL, Pimcore version, runs reporter actions after the response (`kernel.terminate`, `console.terminate`) |
+| `src/Ping/PingController.php` | The public `GET /supertext/ping` (outside Studio's prefix and firewall) |
+| `lib/supertext-sdk/` | Bundled copy of the Supertext PHP SDK, namespace `Supertext\PimcoreTranslationBundle\Sdk` (API version 1 in `…\Sdk\V1`; see *Supertext SDK*) |
 | `src/Service/SegmentTranslator.php` | Sends a set of texts for one language pair, in chunks below the API's size limit |
 | `src/Service/DocumentTranslator.php` | Documents: texts of a page, creating or updating its linked translation |
 | `src/Service/ObjectTranslator.php` | Data objects: the localized fields of one language into others |
@@ -24,18 +26,20 @@ A Symfony bundle (`Supertext\PimcoreTranslationBundle`) with a Pimcore Studio UI
 | `assets/js/src/` | The Studio plugin (React, TypeScript, Module Federation via rsbuild): `index.ts` registers the buttons in the document and data object editor toolbars, `components/translate-modal.tsx` is the dialog, `api.ts` the fetch calls |
 | `public/build/<hash>/` | The built plugin, committed (installs need no Node.js) |
 | `translations/studio.{en,de,fr,it}.yaml` | Studio strings (dialog, permission label, `supertext.error.*` for the messages from the API), in English, German, French and Italian |
-| `config/` | Services, the route import |
+| `config/` | Services, the route imports (`config/pimcore/routing.yaml`: the Studio API with Studio's prefix, the public ping without) |
 
 **Studio API** (session authentication, under `/pimcore-studio/api`):
 
 | Method and path | |
 | --- | --- |
-| `GET /supertext/elements/{document\|data-object}/{id}` | Languages and their state for the dialog: exists / has content, editable, parent ready (documents), last Supertext translation; whether a key is set; the account and key links |
+| `GET /supertext/elements/{document\|data-object}/{id}` | Languages and their state for the dialog: exists / has content, editable, parent ready (documents), last Supertext translation, `supertext` (the target code; `null`: not mapped), `toneUnavailable`; whether a key is set; the account and key links; for administrators `status: {check, reports, reportsFromEnvironment}` |
 | `POST /supertext/elements/{type}/{id}/translate` | `{source?, targets[], overwrite}` → `{results: [{language, status: translated\|skipped\|error, message, documentId?, path?, created?}]}` |
-| `GET /supertext/settings` | API address, key status, languages with Supertext code and politeness |
-| `POST /supertext/settings/test` | Cost-free key check (administrators) |
+| `GET /supertext/settings` | Version, API address, key status, `status` (latest key check, version reports), languages with Supertext code (`null`: not mapped), politeness and `politenessSupported` |
+| `POST /supertext/settings/test` | The SDK's key check (cost-free), stored and reported (`testConnection`) → `{ok, check: {status, checkedAt, httpStatus, errorCode}, message}`; always 200 for administrators |
 
 Each requires the permission `supertext_translate` and *view* on the element; the services check the rest (save/create on target documents, `lEdit` languages on objects).
+
+**Public route** (no login, no session): `GET /supertext/ping?challenge=<16–64 of A-Z a-z 0-9 _ ->` → 200 `{"ok":true,"plugin":"Pimcore-Supertext-Translation","challenge":"…"}`, 400 `{"ok":false}` for any other challenge, 404 with version reports off; `Cache-Control: no-store`.
 
 **Documents.** A document's language is its `language` property (default: the first valid language). Its translations are Pimcore's linked translations (`Document\Service::getTranslations`). A missing translation is created with `Document\Service::copyAsChild($parentTranslation, $document, …, $language)` (which links it), unpublished, then its texts are replaced; an existing one is loaded at its latest version and saved with `saveVersion()` (not published), with missing editables copied from the source first. The source's latest version (drafts included) is translated.
 
@@ -61,7 +65,7 @@ Empty values (and HTML without text) are not sent.
 
 Shared with the WordPress plugin and every other Supertext CMS plugin:
 
-1. `POST {base}translate/ai/file`: multipart with `file` (part `Content-Type` exactly `text/html`, no charset, or the API answers 415), `target_lang` (with a region, e.g. `de-CH`), optional `source_lang` (bare language, e.g. `en`); see *Language codes*, optional `politeness` (`more`/`less`). Returns `{file_id}`.
+1. `POST {base}translate/ai/file`: multipart with `file` (part `Content-Type` exactly `text/html`, no charset, or the API answers 415), `target_lang` (a Supertext target code, e.g. `de-CH` or `es`), optional `source_lang` (bare language, e.g. `en`); see *Language codes*, optional `politeness` (`more`/`less`). Returns `{file_id}`.
 2. `GET …/{file_id}/status` until `done` (`error`, `limit_exceeded`, `deleted` are terminal).
 3. `GET …/{file_id}/translation` returns the translated HTML.
 4. `DELETE …/{file_id}` (files also expire after 24 h).
@@ -72,25 +76,41 @@ Each text is one `<div data-st-id="n">` element in the document, so it is transl
 
 ## Supertext SDK
 
-The protocol above, the retries, the language codes and the `data-st-id` document come from the official Supertext PHP SDK ([Supertext/Supertext-API-SDK-and-Guide](https://github.com/Supertext/Supertext-API-SDK-and-Guide)). The bundle ships a copy in `lib/supertext-sdk/` with its namespace changed from `Supertext\Sdk` to `Supertext\PimcoreTranslationBundle\Sdk` (Composer autoloads it from the bundle's `composer.json`; `tests/bootstrap.php` too), so sites install nothing extra and another package that requires the SDK itself can't clash with it. `lib/supertext-sdk/COMMIT` names the SDK revision.
+The protocol above, the retries, the language list and the `data-st-id` document come from the official Supertext PHP SDK ([Supertext/Supertext-API-SDK-and-Guide](https://github.com/Supertext/Supertext-API-SDK-and-Guide)). The bundle ships a copy in `lib/supertext-sdk/` with its namespace changed from `Supertext\Sdk` to `Supertext\PimcoreTranslationBundle\Sdk` (Composer autoloads it from the bundle's `composer.json`; `tests/bootstrap.php` too), so sites install nothing extra and another package that requires the SDK itself can't clash with it. `lib/supertext-sdk/COMMIT` names the SDK revision (currently 0.2.1). Everything that talks to the API is in `…\Sdk\V1` (`Client`, `Languages`, `InstallationReporter`, …); only `…\Sdk\Supertext::SDK_VERSION` and the HTTP layer (`…\Sdk\Http`) are version-neutral. The vendor script copies the whole `sdk/php/src` tree and rewrites `Supertext\Sdk\` (sub-namespaces included).
 
 - Never edit `lib/supertext-sdk/`. Fix the SDK in its repository, then run `scripts/vendor-sdk.sh [ref]` (default `main`; `SDK_DIR=/path/to/clone` uses a local clone) and the tests.
 - `src/Api/SupertextClient.php` keeps the bundle's interface (`translateDocument`, `translateSegments`, `validateApiKey`, transport callable) and turns every SDK error code into a `SupertextException` with a `key` (`KEYS`) and `params`. A new SDK error code needs a key there and `supertext.error.<key>` in all four `translations/studio.*.yaml`.
 - PHPStan analyses `src/` only; the SDK has its own checks in its repository.
 - Segments missing from Supertext's answer are left untouched.
 - The live API answers an unknown language (`xx-YY`) with HTTP 404 `INVALID_LANGUAGE_PAIR`; the SDK reports it as `invalid_language_pair` with both codes (key `invalid-language-pair`, params `source` and `target`).
+- `unsupported_language` (a Pimcore language without a Supertext code; nothing sent) → key `unsupported-language`, param `language`; `unsupported_feature` (politeness for a target without it) → key `unsupported-feature`.
 
 ## Language codes
 
-Supertext wants the **source as a bare language** (`en`, `de`, `fr`) and the **target as a regional code** (`de-DE`, `fr-CH`, `en-US`). A bare target such as `de`, or a regional source such as `en-US`, is rejected with `INVALID_LANGUAGE_PAIR`. Translating within one language (`en` → `en-GB`) is allowed.
+Supertext accepts exactly the codes its `GET features` lists (the SDK's `Languages::TARGETS`/`SOURCES`, October 2026): targets regional only for de/en/fr/it/pt (`de-CH`, `en-US`, `pt-BR`), `zh-Hans`/`zh-Hant`, `sr-Latn`/`sr-Cyrl`, `gsw-u-sd-chzh`/`chbe`, and **bare for all others** (`es`, `nl`, `sl`); sources are bare (`en`). Anything else is HTTP 404 `INVALID_LANGUAGE_PAIR` (bare `de`, `es-ES`, `sl-SI`, `zh-CN`). No pair within one language.
 
-`src/Api/LanguageCodes.php` (the SDK's `LanguageCodes` plus the configured code; no CMS dependency, `tests/unit/LanguageCodesTest.php`) turns locales into the codes sent:
+**No guessing.** `src/Api/LanguageCodes.php` (the SDK's `Languages`; no CMS dependency, `tests/unit/LanguageCodesTest.php`) resolves a Pimcore language with **one mapping for both directions**, `Settings::mapping()` (= `supertext_translation.languages.<language>.code`, non-blank entries):
 
-- **Source:** the bare language of the source language's `languages.<language>.code`, else of the Pimcore language (`en_GB` → `en`, `en` → `en`).
-- **Target:** the target language's `languages.<language>.code` if set, else the Pimcore language. Either way, a code with a region keeps it, normalized (`de_CH`/`de-ch` → `de-CH`; scripts and numeric regions such as `zh-Hant`, `es-419` keep their form; variants and extensions are dropped: `de-DE-1996` → `de-DE`, `en-US-x-twain` → `en-US`); a bare language gets its default region: ar→ar-SA, bg→bg-BG, cs→cs-CZ, da→da-DK, de→de-DE, el→el-GR, en→en-US, es→es-ES, et→et-EE, fi→fi-FI, fr→fr-FR, hr→hr-HR, hu→hu-HU, it→it-IT, ja→ja-JP, ko→ko-KR, lt→lt-LT, lv→lv-LV, nb→nb-NO, nl→nl-NL, pl→pl-PL, pt→pt-PT, ro→ro-RO, ru→ru-RU, sk→sk-SK, sl→sl-SI, sr→sr-RS, sv→sv-SE, th→th-TH, tr→tr-TR, uk→uk-UA, vi→vi-VN, zh→zh-CN (same table as the other Supertext plugins). Unknown bare codes are sent unchanged, so Supertext's error names them.
+1. the mapping's value, if there is one (keys compared ignoring case and `_`/`-`; the value is sent as it is, even if the SDK doesn't list it);
+2. else the Pimcore code if it equals a Supertext code apart from case and `_`/`-` (`de_CH` → `de-CH`, `es`);
+3. else `SupertextException` key `unsupported-language`, and nothing is sent for that language (the per-language result says so; the other languages are translated).
 
-`Settings::languageCode()` / `sourceCode()` feed `SupertextClient` (via `SegmentTranslator`), which applies the same rule to whatever it is given; the stand-in (`tests/docs/stand-in.mjs`) rejects bare targets and regional sources like the real API.
+Sources use the same mapping in their bare form (`en` mapped to `en-GB` → `en`; `en_GB` → `en`). `Settings::languageCodeOrNull()` feeds the dialog (`supertext: null` → *No Supertext language*, not selectable), `GET /supertext/settings` and `supertext:check`.
 
+**Politeness:** `Settings::politenessFor()` sends `more`/`less` only where `Languages::supportsPoliteness()` isn't `false`; a tone configured for a target without one (English, Swiss German, Romansh, Albanian, Serbian) fails with `unsupported-feature` instead of being dropped, and the dialog marks the language *No formal/informal tone*.
+
+The stand-in (`tests/docs/stand-in.mjs`) accepts exactly this list and rejects everything else like the real API.
+
+## Commando Center: version reports, key check, ping
+
+Protocol: [Commando-Center-Supertext-Translation](https://github.com/Supertext/Commando-Center-Supertext-Translation) → `docs/DEVELOPER.md` → *Report protocol*. The SDK's `InstallationReporter`, `checkApiKey()` and `pingResponse()` implement it; `src/Api/InstallationReports.php` (no Pimcore classes) loads/stores the reporter's state and builds the reporter, `src/Reporting/Reporting.php` supplies what Pimcore knows:
+
+- **Setting:** `version_reports` (bundle config, default `true`); `SUPERTEXT_VERSION_REPORTS` wins (`InstallationReporter::reportsEnabled()`, read through `Settings::env()` because Symfony's Dotenv doesn't `putenv()`). Off: nothing is sent, the ping answers 404. `SUPERTEXT_REPORT_URL` sends reports elsewhere (tests, the demo check).
+- **Report fields:** plugin `Pimcore-Supertext-Translation` (the GitHub repository name) with `Settings::version()` (Composer, the release tag); system `Pimcore` with `Pimcore\Version::getVersion()`; runtime PHP; `site_url` = `Tool::getHostUrl()` of the back-end request (commands: the URL last seen on a request, kept in the settings store as `site_url`, else Pimcore's system settings domain; without any, nothing is reported); `callback.url` = `<site>/supertext/ping`. Reports and the key check go through the bundle's Symfony HttpClient transport (`CallableTransport` passes the SDK's per-request timeout: 3 s for reports, 10 s for the check).
+- **When:** Pimcore has no settings form for the bundle (configuration is YAML and the environment), so there is no `afterSettingsSaved`. `Reporting::later()` queues an action and runs it on `kernel.terminate` (after the response is sent) or `console.terminate`: `onRequest` from every Studio endpoint of the bundle and `supertext:translate` (reports `installed`, `upgraded` or `api_key_check`; checks the key only when its fingerprint changed); `authenticationFailed` from `SegmentTranslator` when a translation gets HTTP 401/403 (replaces that request's `onRequest`). `POST /supertext/settings/test` runs `testConnection` and waits for it; `supertext:check` runs `testConnection` and then `reportCheck` (a `check` report). Nothing here throws into a request (`InstallationReports::run()` catches everything, also storage errors).
+- **State:** Pimcore's settings store (`Pimcore\Model\Tool\SettingsStore`, table `settings_store`), scope `supertext_translation`: id `reporter` (the reporter's JSON state: last reported versions and key status, last failure, latest key check with the key's fingerprint) and id `site_url`. The key itself is never stored or logged; the fingerprint stays local.
+- **Ping:** `src/Ping/PingController.php`, route `supertext_translation_ping`, imported without Studio's prefix, so no Studio firewall or session applies; the SDK's answer (`Cache-Control: no-store`) keeps it out of Pimcore's full page cache.
+- **Display:** administrators get `status` with the element info and see it at the bottom of the translate dialog (key check with time and, for `invalid`/`missing`, the account and API key links; unmapped languages; version reports on/off with the help text). Strings `supertext.keycheck.*` and `supertext.status.*` (the center's texts) in all four `studio.*.yaml`. `supertext:check` prints the same in English.
 
 ## Local development
 
@@ -125,7 +145,7 @@ PHP's built-in server needs a router script that returns `false` for existing fi
 
 After changing the bundle, run `demo/stage-module.sh` and `composer update supertext/pimcore-supertext-translation` (or work with a symlinked path repository), then `bin/console assets:install public` and `bin/console cache:clear`.
 
-To work without a real key, run the stand-in API (`node tests/docs/stand-in.mjs`) and set `SUPERTEXT_API_KEY=anything SUPERTEXT_API_URL=http://127.0.0.1:8765/v1/`. It returns real German, French and Italian for the demo's pages and article and `[de-CH] …`-prefixed text for anything else.
+To work without a real key, run the stand-in API (`node tests/docs/stand-in.mjs`) and set `SUPERTEXT_API_KEY=anything SUPERTEXT_API_URL=http://127.0.0.1:8765/v1/ SUPERTEXT_REPORT_URL=http://127.0.0.1:8765/report` (the stand-in also answers version reports with 202, so a local install never reports to the live Commando Center). It returns real German, French and Italian for the demo's pages and article and `[de-CH] …`-prefixed text for anything else.
 
 ### Pimcore product key
 
@@ -138,9 +158,12 @@ phpunit            # or vendor/bin/phpunit after composer install
 cd assets && npm run check-types && npm run build
 ```
 
-- `tests/unit/SupertextClientTest.php`: the SDK wrapper: protocol, auth header and prefix, 429 retries, error keys (language pair included), clean-up, segments (plain text, HTML, blank, missing) and splitting into several documents.
+- `tests/unit/SupertextClientTest.php`: the SDK wrapper: protocol, auth header and prefix, codes sent as given, 429 retries, error keys (language pair, unsupported tone included), clean-up, segments (plain text, HTML, blank, missing), splitting into several documents, the non-throwing key check.
+- `tests/unit/LanguageCodesTest.php`: exact Supertext codes, no default regions (`unsupported-language`), the mapping (case and `_`/`-`, blank entries, unknown codes sent as they are), bare sources from the same mapping, politeness only where offered.
+- `tests/unit/SettingsTest.php`: the mapping from the bundle configuration, tone per target, `version_reports` on by default and `SUPERTEXT_VERSION_REPORTS` winning, `SUPERTEXT_REPORT_URL`.
+- `tests/unit/InstallationReportsTest.php` (fake transport, never the live API or center): one `installed` report with the right plugin, system, site and callback URL and without the key; nothing on later requests until the key changes; a 401/403 reported once; `testConnection` and the `check` report; nothing sent with reports off; the one-hour back-off; no site URL; storage errors never thrown; ping answers.
 - `tests/unit/StudioTranslationsTest.php`: the four `studio.*.yaml` files have the same keys, `{{placeholders}}` and links, and every error key the PHP code sends has an English text.
-- `tests/demo-check.sh` (CI): the demo image on MySQL and OpenSearch with the stand-in, started twice: demo accounts created once and never duplicated, no passwords in the log, the Editors role and the permission, `supertext:check`, the parent-page rule, translation of the sample pages and article as the editor into three languages (titles, slug keys, HTML with markup, link texts, unpublished pages, linked translations, notes), and the skip on a second run.
+- `tests/demo-check.sh` (CI): the demo image on MySQL and OpenSearch with the stand-in, started twice: demo accounts created once and never duplicated, no passwords in the log, the Editors role and the permission, `supertext:check`, the parent-page rule, translation of the sample pages and article as the editor into three languages (titles, slug keys, HTML with markup, link texts, unpublished pages, linked translations, notes), the skip on a second run, `supertext:check` (key check and language mapping), the public ping (200 with the challenge, 400 otherwise), and an `installed` report after a Studio request as administrator, sent to the stand-in's `POST /report` (`SUPERTEXT_REPORT_URL`), with the state stored in `settings_store` and no key in it.
 
 CI (`.github/workflows/ci.yml`) on every push and pull request: **test** (PHP lint, PHPUnit), **phpstan** (see *Code quality and security checks*), **studio** (type check and build of the plugin) and **demo** (builds `demo/Dockerfile`, runs `tests/demo-check.sh`). The demo job needs the repository secrets `PIMCORE_ENCRYPTION_SECRET`, `PIMCORE_INSTANCE_IDENTIFIER` and `PIMCORE_PRODUCT_KEY`, and skips itself without them (e.g. for pull requests from forks).
 
@@ -159,7 +182,7 @@ The public demo is a container built from `demo/Dockerfile`: PHP 8.4 with Apache
 | `docker/apache.conf` | The virtual host |
 | `router.php` | Router for PHP's built-in server (local development) |
 | `stage-module.sh` | Copies the bundle's files to `demo/module` for local installs |
-| `project/` | The Pimcore project (from Pimcore's skeleton): `composer.json`, `config/bundles.php`, `config/packages/supertext_demo.yaml` (languages, read from this file; Supertext politeness), `config/pimcore/classes/` (the class `Article`), `templates/default/default.html.twig` and `src/Controller/DefaultController.php` (page layout with a language switcher), `src/Installer/SkeletonProfile.php` (install profile, Doctrine Messenger instead of RabbitMQ), `src/Command/DemoSetupCommand.php` |
+| `project/` | The Pimcore project (from Pimcore's skeleton): `composer.json`, `config/bundles.php`, `config/packages/supertext_demo.yaml` (languages, read from this file; the Supertext mapping `en` → `en-GB` and politeness), `config/pimcore/classes/` (the class `Article`), `templates/default/default.html.twig` and `src/Controller/DefaultController.php` (page layout with a language switcher), `src/Installer/SkeletonProfile.php` (install profile, Doctrine Messenger instead of RabbitMQ), `src/Command/DemoSetupCommand.php` |
 | `.env.example` | The variables below |
 
 **Every start** (`docker/entrypoint.sh`): creates the database `PIMCORE_DB_NAME` on the MySQL server if missing; on the first start installs Pimcore (`pimcore-install` with the skeleton profile; the installer's administrator is `DEMO_ADMIN_*` if set, otherwise an account `pimcore-install` with a random password nobody knows); then `cache:warmup` (which also unpacks Studio's frontend), Pimcore migrations, `pimcore:bundle:install SupertextTranslationBundle`, `pimcore:deployment:classes-rebuild --create-classes`, `assets:install`, a rebuild of the search index (OpenSearch keeps no data between deploys) and `supertext:demo-setup`. It then starts the Mercure hub, a Messenger worker (search index updates, maintenance; restarted hourly), `pimcore:maintenance` every 15 minutes, and Apache on `$PORT`.
@@ -181,6 +204,8 @@ The public demo is a container built from `demo/Dockerfile`: PHP 8.4 with Apache
 | `DEMO_EDITOR_EMAIL`, `DEMO_EDITOR_PASSWORD` | Editor for automated tests and screenshots: role **Editors**, every language. Pimcore has no editor role out of the box, so the demo creates this one. |
 | `SUPERTEXT_API_KEY` | Supertext key |
 | `SUPERTEXT_API_URL` | Optional, e.g. a stand-in API |
+| `SUPERTEXT_VERSION_REPORTS` | Optional; `0` turns version reports to the Commando Center off (the demo reports like any installation by default) |
+| `SUPERTEXT_REPORT_URL` | Tests only: where version reports go (the demo check uses the stand-in's `POST /report`) |
 | `PUBLIC_URL` | Optional; otherwise `https://$RAILWAY_PUBLIC_DOMAIN` (Mercure's public address) |
 | `PORT` | Port Apache listens on (`8080`) |
 
@@ -205,6 +230,7 @@ The images in `docs/images/` are generated by `tests/docs/screenshots.mjs` (Play
 cd tests/docs && npm install && npx playwright install chromium
 npm run stand-in &
 # a fresh demo (DEMO_* set), served on :8080 with SUPERTEXT_API_KEY=anything SUPERTEXT_API_URL=http://127.0.0.1:8765/v1/
+#   SUPERTEXT_REPORT_URL=http://127.0.0.1:8765/report (version reports go to the stand-in, never to the live center)
 BASE_URL=http://127.0.0.1:8080 DEMO_ADMIN_EMAIL=… DEMO_ADMIN_PASSWORD=… \
   DEMO_EDITOR_EMAIL=… DEMO_EDITOR_PASSWORD=… npm run screenshots
 ```
@@ -241,7 +267,7 @@ Submitting the package to Packagist is planned.
 ## Known limitations / roadmap
 
 - Pimcore Studio only; the classic admin interface is not supported.
-- No settings screen in Studio: settings are environment variables and YAML; `supertext:check` and `POST /supertext/settings/test` check the key.
+- No settings screen in Studio: settings (including the language mapping and version reports) are environment variables and YAML; administrators see the status at the bottom of the translate dialog, `supertext:check` prints it. A Studio settings page with a language mapping selector is on the roadmap.
 - Translation runs inside the editor's request (one language after the other, up to `timeout` each). Planned: a queued job (Generic Execution Engine) and a batch action for several elements.
 - Data objects: localized fields at the top level only; field collections, object bricks, blocks and classification stores are not translated yet. Asset metadata and shared translations (*Translations*) are not covered.
 - Documents: renderlet, snippet and relation editables are copied, not translated.

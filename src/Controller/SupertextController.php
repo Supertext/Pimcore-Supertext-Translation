@@ -12,7 +12,10 @@ use Pimcore\Model\Document\PageSnippet;
 use Pimcore\Model\User;
 use Pimcore\Tool;
 use Psr\Log\LoggerInterface;
+use Supertext\PimcoreTranslationBundle\Api\InstallationReports;
+use Supertext\PimcoreTranslationBundle\Api\LanguageCodes;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
+use Supertext\PimcoreTranslationBundle\Reporting\Reporting;
 use Supertext\PimcoreTranslationBundle\Service\DocumentTranslator;
 use Supertext\PimcoreTranslationBundle\Service\ObjectTranslator;
 use Supertext\PimcoreTranslationBundle\Settings;
@@ -26,10 +29,11 @@ use Symfony\Component\Serializer\SerializerInterface;
  *
  *   GET  /supertext/elements/{type}/{id}             languages and their state for the translate dialog
  *   POST /supertext/elements/{type}/{id}/translate   {source?, targets[], overwrite}
- *   GET  /supertext/settings                         API key status, API address, languages (admins)
+ *   GET  /supertext/settings                         API key status and check, version reports, API address, languages
  *   POST /supertext/settings/test                    checks the API key, cost-free (admins)
  *
- * {type} is "document" or "data-object".
+ * {type} is "document" or "data-object". Every endpoint queues the Commando Center's onRequest for
+ * after the response (src/Reporting/Reporting.php); the ping route is public, in src/Ping/.
  */
 final class SupertextController extends AbstractApiController
 {
@@ -40,6 +44,7 @@ final class SupertextController extends AbstractApiController
         private readonly ObjectTranslator $objects,
         private readonly DocumentTranslator $documents,
         private readonly LoggerInterface $logger,
+        private readonly Reporting $reporting,
     ) {
         parent::__construct($serializer);
     }
@@ -56,19 +61,23 @@ final class SupertextController extends AbstractApiController
             return $this->error('Not found.', 404, 'element-not-found');
         }
 
+        $this->reporting->later(InstallationReports::ON_REQUEST);
         $common = [
             'configured' => $this->settings->apiKey() !== '',
             'signupUrl' => Settings::SIGNUP_URL,
             'apiKeyUrl' => Settings::API_KEY_URL,
             'isAdmin' => $user->isAdmin(),
         ];
+        if ($user->isAdmin()) {
+            $common['status'] = $this->status();
+        }
         if ($element instanceof PageSnippet) {
             $info = $this->documents->describe($element, $user);
 
-            return new JsonResponse($common + ['type' => 'document', 'source' => $info['source'], 'languages' => $info['languages']]);
+            return new JsonResponse($common + ['type' => 'document', 'source' => $info['source'], 'languages' => $this->withCodes($info['languages'])]);
         }
 
-        return new JsonResponse($common + ['type' => 'data-object', 'fields' => array_keys($this->objects->fields($element)), 'languages' => $this->objects->describe($element, $user)]);
+        return new JsonResponse($common + ['type' => 'data-object', 'fields' => array_keys($this->objects->fields($element)), 'languages' => $this->withCodes($this->objects->describe($element, $user))]);
     }
 
     #[Route('/supertext/elements/{type}/{id}/translate', name: 'supertext_translation_translate', requirements: ['type' => 'document|data-object', 'id' => '\d+'], methods: ['POST'])]
@@ -88,6 +97,7 @@ final class SupertextController extends AbstractApiController
             return $this->error('Choose at least one language to translate into.', 400, 'choose-target');
         }
         $overwrite = (bool) ($payload['overwrite'] ?? false);
+        $this->reporting->later(InstallationReports::ON_REQUEST);
         @set_time_limit(max(300, $this->settings->timeout() * (\count($targets) + 1)));
 
         try {
@@ -120,18 +130,23 @@ final class SupertextController extends AbstractApiController
         if (!$user->isAllowed(Settings::PERMISSION) && !$user->isAdmin()) {
             return $this->error('You are not allowed to see the Supertext settings.', 403);
         }
+        $this->reporting->later(InstallationReports::ON_REQUEST);
         $languages = [];
         foreach (Tool::getValidLanguages() as $language) {
+            $code = $this->settings->languageCodeOrNull($language);
             $languages[] = [
                 'language' => $language,
                 'name' => \Locale::getDisplayName($language, $user->getLanguage() ?: 'en'),
-                'code' => $this->settings->languageCode($language),
+                'code' => $code,
                 'politeness' => $this->settings->politeness($language),
+                'politenessSupported' => $code === null ? null : LanguageCodes::supportsPoliteness($code),
             ];
         }
 
         return new JsonResponse([
+            'version' => Settings::version(),
             'configured' => $this->settings->apiKey() !== '',
+            'status' => $this->status(),
             'apiKeySource' => $this->settings->apiKeySource(),
             'apiUrl' => $this->settings->baseUrl(),
             'timeout' => $this->settings->timeout(),
@@ -148,16 +163,51 @@ final class SupertextController extends AbstractApiController
         if (!$this->user()->isAdmin()) {
             return $this->error('Only administrators can test the connection.', 403);
         }
-        if ($this->settings->apiKey() === '') {
-            return $this->error('No Supertext API key is configured. Set the SUPERTEXT_API_KEY environment variable. ' . Settings::KEY_HELP, 400);
-        }
-        try {
-            $this->settings->client()->validateApiKey();
-        } catch (SupertextException $e) {
-            return $this->error(Settings::withKeyHelp($e)->getMessage(), 502);
+        // The SDK's key check (cost-free GET features), stored and reported like every other check.
+        // Always 200 for administrators: the check's status says how it went.
+        $result = $this->reporting->run(InstallationReports::TEST_CONNECTION);
+        $check = $result?->check;
+
+        return new JsonResponse([
+            'ok' => $check?->status === 'ok',
+            'check' => InstallationReports::checkToArray($check),
+            'message' => InstallationReports::checkMessage($check),
+        ]);
+    }
+
+    /**
+     * The latest API key check and the version report setting (administrators).
+     *
+     * @return array{check: array{status: string, checkedAt: string, httpStatus: int|null, errorCode: string|null}|null, reports: bool, reportsFromEnvironment: bool}
+     */
+    private function status(): array
+    {
+        return [
+            'check' => InstallationReports::checkToArray($this->reporting->lastCheck()),
+            'reports' => $this->settings->versionReports(),
+            'reportsFromEnvironment' => $this->settings->versionReportsFromEnvironment(),
+        ];
+    }
+
+    /**
+     * Adds the Supertext target code to each language (null: not mapped, the dialog says so) and
+     * whether a configured tone is offered for it.
+     *
+     * @param list<array<string, mixed>> $languages
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function withCodes(array $languages): array
+    {
+        foreach ($languages as $i => $language) {
+            $code = $this->settings->languageCodeOrNull((string) $language['language']);
+            $languages[$i]['supertext'] = $code;
+            $languages[$i]['toneUnavailable'] = $code !== null
+                && $this->settings->politeness((string) $language['language']) !== ''
+                && LanguageCodes::supportsPoliteness($code) === false;
         }
 
-        return new JsonResponse(['ok' => true, 'message' => 'Connected. The API key works.']);
+        return $languages;
     }
 
     private function user(): User

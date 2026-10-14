@@ -20,10 +20,13 @@ use Supertext\PimcoreTranslationBundle\Sdk\Http\TransportException;
  */
 final class CallableTransport implements HttpTransport
 {
-    /** @var callable(string, string, array<string, string>, ?string): array{status: int, body: string, headers?: array<string, string>} */
+    /** @var callable(string, string, array<string, string>, ?string, float): array{status: int, body: string, headers?: array<string, string>} */
     private $send;
 
-    /** @param callable(string $method, string $url, array<string, string> $headers, ?string $body): array{status: int, body: string, headers?: array<string, string>} $send */
+    /**
+     * @param callable(string $method, string $url, array<string, string> $headers, ?string $body, float $timeout): array{status: int, body: string, headers?: array<string, string>} $send
+     *        $timeout: seconds for the whole request (3 s for version reports, 10 s for the key check)
+     */
     public function __construct(callable $send)
     {
         $this->send = $send;
@@ -32,7 +35,7 @@ final class CallableTransport implements HttpTransport
     public function send(HttpRequest $request): HttpResponse
     {
         try {
-            $response = ($this->send)($request->method, $request->url, $request->headers, $request->body);
+            $response = ($this->send)($request->method, $request->url, $request->headers, $request->body, $request->timeout);
         } catch (\Throwable $e) {
             throw new TransportException($e->getMessage(), 0, $e);
         }

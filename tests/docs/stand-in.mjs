@@ -3,8 +3,12 @@
  * Docs screenshots and CI only: answers like the Supertext AI file translation API v1 and
  * returns German, French and Italian for the demo's sample article (samples.json: real
  * Supertext output, keyed by target language's primary subtag).
- * Unknown text comes back as "[<target>] text". Like the real API, it rejects bare targets ("de")
- * and regional sources ("en-US") with INVALID_LANGUAGE_PAIR. Listens on :8765 (any API key).
+ * Unknown text comes back as "[<target>] text". Like the real API, it accepts exactly Supertext's
+ * language list (targets such as "de-CH", "es", "zh-Hans"; bare sources) and answers anything else
+ * ("de", "es-ES", "en-US" as source) with 404 INVALID_LANGUAGE_PAIR, and a tone for a target without
+ * one with 400 FEATURE_ERROR. POST /report answers 202 like the Commando Center, so a demo pointed
+ * here (SUPERTEXT_REPORT_URL=http://127.0.0.1:8765/report) never reports to the live center.
+ * Listens on :8765 (any API key).
  */
 import http from 'node:http'
 import { randomBytes } from 'node:crypto'
@@ -20,6 +24,10 @@ const samples = Object.fromEntries(
   ]),
 )
 const files = new Map()
+// Supertext's languages (GET features, October 2026; the SDK's spec/languages.json).
+const TARGETS = new Set(['bg', 'cs', 'da', 'de-AT', 'de-CH', 'de-DE', 'el', 'en-GB', 'en-US', 'es', 'fi', 'fr-CH', 'fr-FR', 'gsw-u-sd-chbe', 'gsw-u-sd-chzh', 'hr', 'hu', 'it-CH', 'it-IT', 'ja', 'ko', 'nb', 'nl', 'pl', 'pt-BR', 'pt-PT', 'rm', 'ru', 'sk', 'sl', 'sq', 'sr-Cyrl', 'sr-Latn', 'sv', 'tr', 'zh-Hans', 'zh-Hant'])
+const NO_POLITENESS = new Set(['en-GB', 'en-US', 'gsw-u-sd-chbe', 'gsw-u-sd-chzh', 'rm', 'sq', 'sr-Cyrl', 'sr-Latn'])
+const SOURCES = new Set(['bg', 'cs', 'da', 'de', 'el', 'en', 'es', 'fi', 'fr', 'gsw', 'hr', 'hu', 'it', 'ja', 'ko', 'nb', 'nl', 'pl', 'pt', 'rm', 'ru', 'sk', 'sl', 'sq', 'sr', 'sv', 'tr', 'zh'])
 
 http
   .createServer(async (req, res) => {
@@ -27,6 +35,10 @@ http
     const send = (status, body, type = 'application/json') => {
       res.writeHead(status, { 'Content-Type': type })
       res.end(type === 'application/json' ? JSON.stringify(body) : body)
+    }
+    if (req.method === 'POST' && req.url.startsWith('/report')) {
+      req.resume()
+      return send(202, { ok: true })
     }
     if (!/^Supertext-Auth-Key \S+$/.test(req.headers.authorization || '')) return send(401, { detail: 'missing key' })
     if (path === '/features') return send(200, {})
@@ -36,11 +48,14 @@ http
       const form = await new Request('http://x', { method: 'POST', headers: req.headers, body: Buffer.concat(chunks) }).formData()
       const file = form.get('file')
       if (!file || file.type !== 'text/html') return send(415, { detail: 'FILETYPE_NOT_ALLOWED' })
-      // Like the real API: bare targets ("de") and regional sources ("en-US") are rejected.
+      // Like the real API: only Supertext's exact codes ("de" or "es-ES" as target, "en-US" as source are rejected).
       const target = String(form.get('target_lang') ?? '')
       const source = form.get('source_lang')
-      if (!/^[a-z]{2,3}-([A-Z]{2}|[A-Z][a-z]{3}|\d{3})$/.test(target) || (source !== null && !/^[a-z]{2,3}$/.test(String(source)))) {
-        return send(400, { detail: 'INVALID_LANGUAGE_PAIR' })
+      if (!TARGETS.has(target) || (source !== null && !SOURCES.has(String(source))) || (source !== null && target.split('-')[0] === String(source))) {
+        return send(404, { error_code: 'INVALID_LANGUAGE_PAIR', source_lang: source, target_lang: target })
+      }
+      if (['more', 'less'].includes(String(form.get('politeness') ?? '')) && NO_POLITENESS.has(target)) {
+        return send(400, { error_code: 'FEATURE_ERROR', feature: 'politeness', source_lang: source, target_lang: target })
       }
       const id = randomBytes(6).toString('hex')
       files.set(id, { html: await file.text(), target })

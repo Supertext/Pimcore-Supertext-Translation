@@ -8,19 +8,20 @@
 
 namespace Supertext\PimcoreTranslationBundle\Api;
 
-use Supertext\PimcoreTranslationBundle\Sdk\Client;
-use Supertext\PimcoreTranslationBundle\Sdk\HtmlDocument;
-use Supertext\PimcoreTranslationBundle\Sdk\Segment;
-use Supertext\PimcoreTranslationBundle\Sdk\Supertext;
-use Supertext\PimcoreTranslationBundle\Sdk\SupertextException as SdkException;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\ApiKeyCheck;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\Client;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\HtmlDocument;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\Protocol;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\Segment;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\SupertextException as SdkException;
 
 /**
  * Supertext AI file translation API v1 (https://api.supertext.com/v1/), through the
- * Supertext PHP SDK bundled in lib/supertext-sdk (namespace Supertext\PimcoreTranslationBundle\Sdk).
+ * Supertext PHP SDK bundled in lib/supertext-sdk (namespace Supertext\PimcoreTranslationBundle\Sdk\V1).
  *
  * The SDK does the protocol (upload one HTML document, poll its status, download the
- * translation, delete the file), the auth header, HTTP 429 retries, language codes and
- * the data-st-id document. This class keeps the bundle's interface: HTTP goes through a
+ * translation, delete the file), the auth header, HTTP 429 retries and the data-st-id
+ * document. Language codes are resolved before (LanguageCodes): the SDK sends them as given. This class keeps the bundle's interface: HTTP goes through a
  * transport callable (Symfony HttpClient, or a fake in tests), and SDK errors come out
  * as this bundle's SupertextException with a key the Studio UI translates.
  *
@@ -28,12 +29,12 @@ use Supertext\PimcoreTranslationBundle\Sdk\SupertextException as SdkException;
  */
 final class SupertextClient
 {
-    public const LIVE = Supertext::LIVE_BASE_URL;
+    public const LIVE = Protocol::LIVE_BASE_URL;
     public const STAGING = 'https://api.staging.supertext.com/v1/';
     public const TESTING = 'https://api.testing.supertext.com/v1/';
 
     /** Stay well below the API's 1,000,000 character limit per document. */
-    public const MAX_DOCUMENT_CHARACTERS = Supertext::DEFAULT_MAX_CHARACTERS;
+    public const MAX_DOCUMENT_CHARACTERS = Protocol::DEFAULT_MAX_CHARACTERS;
 
     /**
      * SDK error code → [key, English message]. The Studio UI shows `supertext.error.<key>`
@@ -43,6 +44,8 @@ final class SupertextClient
         SdkException::MISSING_API_KEY => ['no-api-key', 'No Supertext API key is configured.'],
         SdkException::AUTHENTICATION_FAILURE => ['auth-failed', 'Authentication failed. Please check the Supertext API key.'],
         SdkException::INVALID_LANGUAGE_PAIR => ['invalid-language-pair', 'Supertext does not support this language pair (%s → %s).'],
+        SdkException::UNSUPPORTED_LANGUAGE => ['unsupported-language', 'The language %s has no Supertext language yet. Ask your administrator to map it (supertext_translation.languages.<language>.code).'],
+        SdkException::UNSUPPORTED_FEATURE => ['unsupported-feature', 'Supertext offers no formal or informal tone for this language. Remove the politeness setting for it (supertext_translation.languages.<language>.politeness).'],
         SdkException::NOT_FOUND => ['not-found', 'The requested Supertext resource was not found.'],
         SdkException::PAYLOAD_TOO_LARGE => ['too-large', 'The content is too large for Supertext to translate in one go.'],
         SdkException::TOO_MANY_REQUESTS => ['rate-limited', 'Too many requests to Supertext. Please try again shortly.'],
@@ -123,8 +126,8 @@ final class SupertextClient
     /**
      * Translates a complete HTML document and returns the translated HTML.
      *
-     * @param string $targetLanguage BCP-47 code, e.g. "de-CH"; a bare language gets its default region ("de" → "de-DE")
-     * @param string $sourceLanguage any form ("en-GB"); only the primary subtag is sent. Empty: auto-detect.
+     * @param string $targetLanguage a Supertext target code, e.g. "de-CH" or "es" (LanguageCodes::target()); sent as given
+     * @param string $sourceLanguage a Supertext source code, e.g. "en" (LanguageCodes::source()); sent as given. Empty: auto-detect.
      * @param string $politeness     "default", "more" (formal) or "less" (informal)
      */
     public function translateDocument(string $html, string $targetLanguage, string $sourceLanguage = '', string $politeness = 'default'): string
@@ -174,10 +177,16 @@ final class SupertextClient
         $this->call(fn () => $this->sdk->validateApiKey());
     }
 
+    /** The automatic API key check (cost-free GET features); never throws. */
+    public function checkApiKey(): ApiKeyCheck
+    {
+        return $this->sdk->checkApiKey();
+    }
+
     /** Seconds to wait before retry $attempt (0-based): Retry-After if sent, else 1, 2, 4, 8 plus jitter. */
     public static function retryDelay(int $attempt, string $retryAfter = ''): float
     {
-        return Supertext::retryDelayMs($attempt, $retryAfter !== '' ? $retryAfter : null) / 1000;
+        return Protocol::retryDelayMs($attempt, $retryAfter !== '' ? $retryAfter : null) / 1000;
     }
 
     /**
@@ -194,13 +203,15 @@ final class SupertextClient
         }
     }
 
-    private static function fromSdk(SdkException $e): SupertextException
+    /** An SDK error as this bundle's exception, with the key the Studio UI translates. */
+    public static function fromSdk(SdkException $e): SupertextException
     {
         [$key, $message] = self::KEYS[$e->errorCode] ?? ['', $e->getMessage()];
         $detail = (string) $e->detail;
         $params = match ($e->errorCode) {
             SdkException::UNEXPECTED_STATUS => ['status' => (int) $e->status],
             SdkException::INVALID_LANGUAGE_PAIR => ['source' => (string) $e->sourceLang ?: '?', 'target' => (string) $e->targetLang ?: '?'],
+            SdkException::UNSUPPORTED_LANGUAGE => ['language' => (string) ($e->targetLang ?? $e->sourceLang) ?: '?'],
             default => [],
         };
         $message = $params === [] ? $message : sprintf($message, ...array_values($params));

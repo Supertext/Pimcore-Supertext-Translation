@@ -36,7 +36,8 @@ bin/console cache:clear
 `pimcore:bundle:install` adds the permission **Translate with Supertext** (`supertext_translate`). The bundle adds:
 
 - a **Translate with Supertext** button to the bottom toolbar of documents (pages, snippets, e-mails…; not folders and links) and data objects (not folders) in Pimcore Studio, for users with that permission,
-- the console commands `supertext:translate` and `supertext:check`.
+- the console commands `supertext:translate` and `supertext:check`,
+- the public route `GET /supertext/ping` (see [Version information, API key check and ping](#version-information-api-key-check-and-ping)).
 
 ### Update
 
@@ -77,10 +78,16 @@ bin/console supertext:check
 ```
 Supertext Translation for Pimcore 0.1.0 (https://github.com/Supertext/Pimcore-Supertext-Translation/releases/tag/v0.1.0)
 API address: https://api.supertext.com/v1/
-Connected. The API key works.
+Languages (Pimcore → Supertext):
+  en → en-GB
+  de_CH → de-CH (more)
+  fr_CH → fr-CH (more)
+  it_CH → it-CH (more)
+Send version information to Supertext: on (version_reports)
+API key checked: the connection to Supertext works.
 ```
 
-The first line is the installed version of the bundle.
+The first line is the installed version of the bundle. Languages without a Supertext language are listed as *not mapped* (see [Languages](#languages)).
 
 Without a key, the translate dialog tells editors that Supertext is not set up yet and shows the two links above; `supertext:check` and the error messages for a rejected key show them too.
 
@@ -93,7 +100,22 @@ The bundle translates into the languages set up in Pimcore: **System Settings �
 - **Data objects:** every language here can be translated into, for the class's localized fields.
 - **Documents:** Pimcore keeps one document tree per language, linked as translations. A document's language is its **Language** property (set it on the root page of each language tree; child pages inherit it). Documents without one count as the first language in the list. A new translation is created under the parent page's translation in the target language, so translate the language's root page first (e.g. `/en` into `/de-ch`). Pages directly under *Home* get the target language's code as key (`de-ch`); others get a key made from the translated navigation name or title (`schweizer-schokolade`).
 
-Pimcore's language codes are sent to Supertext as BCP 47 codes. Supertext needs the target language with a region: a code with one is kept (`de_CH` → `de-CH`), a code without one gets the usual region (`de` → `de-DE`, `fr` → `fr-FR`, `en` → `en-US`, `it` → `it-IT`, …). The source language is sent without region (`en_GB` → `en`). Override the code or set the form of address per language in the bundle configuration (see [Settings](#settings)).
+### Supertext languages (language mapping)
+
+Each Pimcore language needs a Supertext language. Supertext accepts exactly these target codes (from its `features` list, October 2026):
+
+| Language | Supertext codes |
+| --- | --- |
+| German, English, French, Italian, Portuguese | `de-DE`, `de-CH`, `de-AT`, `en-US`, `en-GB`, `fr-FR`, `fr-CH`, `it-IT`, `it-CH`, `pt-PT`, `pt-BR` |
+| Chinese, Serbian | `zh-Hans`, `zh-Hant`, `sr-Latn`, `sr-Cyrl` |
+| Swiss German | `gsw-u-sd-chzh` (Zurich), `gsw-u-sd-chbe` (Bern) |
+| All others, without region | `bg`, `cs`, `da`, `el`, `es`, `fi`, `hr`, `hu`, `ja`, `ko`, `nb`, `nl`, `pl`, `rm`, `ru`, `sk`, `sl`, `sq`, `sv`, `tr` |
+
+- A Pimcore language whose code **is** one of these codes (apart from upper/lower case and `_`/`-`) is used as it is: `de_CH` → `de-CH`, `fr_CH` → `fr-CH`, `es` → `es`.
+- **Every other language needs a mapping** in the bundle configuration, `languages.<language>.code` (see [Settings](#settings)), e.g. `en: { code: en-GB }`, `de: { code: de-CH }`, `zh_Hans: { code: zh-Hans }`, `no: { code: nb }`. The bundle never guesses a region: Pimcore's `de` could mean Germany or Switzerland, and Supertext rejects bare `de`, `es_ES` or `zh_CN`. An unmapped language is shown as *No Supertext language* in the translate dialog and can't be selected; `supertext:check` lists it as *not mapped*.
+- The **source language** is sent without region, from the same mapping (`en` mapped to `en-GB` is sent as `en`; `en_GB` → `en`). The 28 source languages are the languages above without region, plus `gsw` (Swiss German).
+- A mapped code is sent as it is, even one this list doesn't have yet (a language Supertext adds later works right away).
+- Formal/informal (`politeness`) isn't offered for English, Swiss German, Romansh, Albanian and Serbian. A tone set for one of them is not dropped silently: the dialog marks the language *No formal/informal tone*, and translating into it fails with *Supertext offers no formal or informal tone for this language* until you remove the tone.
 
 ## Interface languages
 
@@ -121,8 +143,11 @@ The dialog shows languages the user may not edit as *Not allowed*: for data obje
 | `api_url` | `supertext_translation` config | — | Custom API address (overrides `environment`). |
 | `timeout` | `supertext_translation` config | `180` | Seconds to wait for each translation. |
 | `poll_interval` | `supertext_translation` config | `2` | Seconds between status checks. |
-| `languages.<language>.code` | `supertext_translation` config | BCP 47 form of the Pimcore code, with the usual region if it has none (`de` → `de-DE`) | Supertext language code for a Pimcore language (wins over the Pimcore code; a code without region gets the usual one). |
-| `languages.<language>.politeness` | `supertext_translation` config | Supertext's default | Form of address: `more` (formal, e.g. *Sie*), `less` (informal, e.g. *du*). |
+| `languages.<language>.code` | `supertext_translation` config | the Pimcore code, if it is a Supertext code (`de_CH` → `de-CH`, `es`) | **Language mapping**: the Supertext code for a Pimcore language (see [Supertext languages](#supertext-languages-language-mapping)). Needed for every language whose code isn't a Supertext code (`en`, `de`, `fr`, `zh_CN`, …); there are no default regions. Also used for the source language (in its bare form). |
+| `languages.<language>.politeness` | `supertext_translation` config | Supertext's default | Form of address: `more` (formal, e.g. *Sie*), `less` (informal, e.g. *du*). Only for languages Supertext offers it for (not English, Swiss German, Romansh, Albanian, Serbian). |
+| `version_reports` | `supertext_translation` config | `true` | **Send version information to Supertext** (see [below](#version-information-api-key-check-and-ping)). `false` turns it off. |
+| `SUPERTEXT_VERSION_REPORTS` | Environment variable | — | `0` (or `false`, `off`, `no`) turns version information off, `1` (`true`, `on`, `yes`) on; wins over `version_reports`. |
+| `SUPERTEXT_REPORT_URL` | Environment variable | — | Tests only: send version reports to another address (e.g. a stand-in) instead of the Supertext Commando Center. |
 | `object_field_types` | `supertext_translation` config | `[input, textarea, wysiwyg]` | Localized field types translated in data objects. |
 | `document_editable_types` | `supertext_translation` config | `[input, textarea, wysiwyg, link]` | Editable types translated in documents (for links, the link text). |
 
@@ -132,12 +157,23 @@ Example `config/packages/supertext_translation.yaml`:
 supertext_translation:
     timeout: 300
     languages:
-        de_CH: { politeness: more }
+        en: { code: en-GB }          # Pimcore "en" isn't a Supertext code: map it
+        de_CH: { politeness: more }   # de_CH is a Supertext code (de-CH) as it is
         fr_CH: { politeness: more }
         it_CH: { politeness: more }
         pt: { code: pt-BR }
     object_field_types: [input, textarea, wysiwyg]
 ```
+
+## Version information, API key check and ping
+
+**Send version information to Supertext** (`version_reports`) is on by default. The bundle then sends the site URL and the versions of this bundle, Pimcore and the runtime to Supertext after an update and when the API key changes, so Supertext support can see which version you run. A report contains exactly: the site URL (the address Pimcore serves the back end at; commands use the one last seen, else the domain in Pimcore's system settings), the bundle's name and version, the Pimcore and PHP versions, the Supertext SDK version, whether a key is set, the result of the API key check below (status, time, HTTP status, Supertext's error code) and the address of the ping endpoint. **No content, no API key and no personal data are sent.** Reports go from the Pimcore server after the response has been sent (never from the browser, never slowing down a request); a report that fails is not retried for an hour and never breaks a translation. Set `version_reports: false` in the bundle configuration, or `SUPERTEXT_VERSION_REPORTS=0` in the environment, and clear the cache to turn it off: nothing is sent at all then, and the ping endpoint answers 404.
+
+**The API key check** runs whether or not version information is sent: when the bundle runs (the translate dialog, a translation, `supertext:translate`) with a key it hasn't checked yet (the key in `SUPERTEXT_API_KEY` is compared by a fingerprint kept in the database, never the key itself), when Supertext rejects the key during a translation, and on `supertext:check` (which also sends a `check` report). It's Supertext's cost-free `features` call; nothing is translated or billed. Administrators see the latest result with its time at the bottom of the translate dialog (*Supertext status*), with whether version information is sent and which languages aren't mapped; `supertext:check` prints it too: *the connection works*, *Supertext rejected the API key* (with the links to create an account and generate a key), *no API key is set*, *Supertext can't be reached* or *Supertext answered with an error*.
+
+**The ping endpoint** `GET <site>/supertext/ping?challenge=…` is public (no login, no session) and answers only `{"ok":true,"plugin":"Pimcore-Supertext-Translation","challenge":"…"}` with `Cache-Control: no-store` (so Pimcore's full page cache doesn't keep it), so Supertext can see that the site is reachable from the internet. It returns nothing else: no versions, no settings, no data. If your project's `security.yaml` has a firewall or `access_control` rule that requires a login for every path, allow `^/supertext/ping$` with `PUBLIC_ACCESS`.
+
+The bundle keeps its state (what was reported last, the latest key check, the last site URL) in Pimcore's settings store (table `settings_store`, scope `supertext_translation`).
 
 Translations run while the editor waits (one request per language). Long pages into many languages can take a minute or two: allow PHP's `max_execution_time` and your proxy's timeout accordingly (the bundle raises PHP's limit for these requests where allowed).
 
@@ -161,10 +197,14 @@ bin/console supertext:check
 | Opening a data object says *You do not have permission to perform this action on this element* | Pimcore Studio 2026.3 requires the **Classes** permission to open data objects. |
 | *Supertext is not set up yet* / *No Supertext API key is configured* | Set `SUPERTEXT_API_KEY` (see [API key](#api-key)) and clear the cache. |
 | *Authentication failed. Please check the Supertext API key.* | The key is wrong or was revoked. Generate a new one at supertext.com → Integrations → API. |
+| *Supertext rejected the API key* (Supertext status, `supertext:check`) | The key is wrong or revoked. Check that the whole key was copied into `SUPERTEXT_API_KEY`, or generate a new one at <https://www.supertext.com/en/integrations/api> (Admin role required). No Supertext account yet? Create one at <https://www.supertext.com/person/en/account/signin>. Then run `bin/console supertext:check`. |
+| *The API key couldn't be checked because Supertext can't be reached* | The server can't reach `api.supertext.com` (firewall, proxy, DNS). Translations need the same connection. |
+| *The language … has no Supertext language yet* / *No Supertext language* in the dialog / *not mapped* in `supertext:check` | The Pimcore code isn't a Supertext code: add `languages.<language>.code` (see [Supertext languages](#supertext-languages-language-mapping)) and clear the cache. |
+| *Supertext offers no formal or informal tone for this language* / *No formal/informal tone* in the dialog | `languages.<language>.politeness` is set for a language without it (English, Swiss German, Romansh, Albanian, Serbian); remove it. |
 | A language shows *Translate the parent page first* | Translate the parent page (or the language's root page) into that language first. |
 | A language shows *Not allowed* | The user's workspaces don't allow editing that language or creating the page there. |
 | *Timed out waiting for the Supertext translation.* | Raise `timeout`; check that the server reaches `api.supertext.com`. |
-| *Supertext does not support this language pair (en → xx-YY).* | The Pimcore language (or its `code` under `supertext_translation.languages`) isn't one Supertext offers. Set the `code` to a code such as `de-CH` or `fr`; the message shows the codes that were sent. |
+| *Supertext does not support this language pair (en → xx-YY).* | A mapped `code` Supertext doesn't offer (e.g. `es-ES` instead of `es`, `fr` instead of `fr-FR`/`fr-CH`, or the same language as the source). Fix the mapping; the message shows the codes that were sent. |
 | *Too many requests to Supertext.* | The bundle retries automatically; if it persists, try again in a moment. |
 | *Your Supertext translation limit is exceeded.* | Your Supertext subscription's limit is used up; contact Supertext. |
 

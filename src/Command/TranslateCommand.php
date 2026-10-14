@@ -9,7 +9,9 @@ use Pimcore\Model\Document;
 use Pimcore\Model\Document\PageSnippet;
 use Pimcore\Model\User;
 use Pimcore\Tool;
+use Supertext\PimcoreTranslationBundle\Api\InstallationReports;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
+use Supertext\PimcoreTranslationBundle\Reporting\Reporting;
 use Supertext\PimcoreTranslationBundle\Service\DocumentTranslator;
 use Supertext\PimcoreTranslationBundle\Service\ObjectTranslator;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -27,6 +29,7 @@ final class TranslateCommand extends Command
     public function __construct(
         private readonly DocumentTranslator $documents,
         private readonly ObjectTranslator $objects,
+        private readonly Reporting $reporting,
     ) {
         parent::__construct();
     }
@@ -44,6 +47,8 @@ final class TranslateCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        // Commando Center: notices updates and a changed key, when the command ends.
+        $this->reporting->later(InstallationReports::ON_REQUEST);
         $user = $this->user($input->getOption('user'));
         if (!$user) {
             $output->writeln('<error>User not found.</error>');

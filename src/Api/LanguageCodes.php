@@ -8,38 +8,92 @@
 
 namespace Supertext\PimcoreTranslationBundle\Api;
 
-use Supertext\PimcoreTranslationBundle\Sdk\LanguageCodes as SdkLanguageCodes;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\Languages;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\SupertextException as SdkException;
 
 /**
- * CMS locales → Supertext language codes.
+ * Pimcore languages → Supertext language codes, without guessing (the SDK's `Languages`, the same
+ * rules in every Supertext plugin):
  *
- * Supertext wants the source as a bare language ("en") and the target with a
- * region ("de-DE", "en-US"); a bare target such as "de" is rejected with
- * INVALID_LANGUAGE_PAIR. Locales without a region get the default region
- * from the Supertext SDK (same table in every Supertext plugin); unknown bare
- * codes are sent unchanged, so Supertext's error names them. The site's own
- * override (`supertext_translation.languages.<lang>.code`) wins over the language.
+ * 1. the language mapping (`supertext_translation.languages.<language>.code`), if set;
+ * 2. else a Pimcore code that equals a Supertext code apart from case and `_`/`-` (`de_CH` → `de-CH`, `es`);
+ * 3. else `unsupported-language`, and nothing is sent.
+ *
+ * Supertext accepts only the codes its `features` list names: regional targets for de/en/fr/it/pt
+ * (`de-CH`, `en-US`, `pt-BR`), `zh-Hans`/`zh-Hant`, `sr-Latn`/`sr-Cyrl`, `gsw-u-sd-chzh`/`chbe`, bare
+ * for all others (`es`, `nl`, `sl`). Sources are bare (`en`); one mapping serves both directions
+ * (`en` mapped to `en-US` is sent as source `en`).
  */
 final class LanguageCodes
 {
-    /** The region Supertext uses when a locale has none (the SDK's table). */
-    public const DEFAULT_REGION = SdkLanguageCodes::DEFAULT_REGIONS;
-
-    /** "de_ch" → "de-CH", "DE" → "de", "zh_hant" → "zh-Hant", "es-419" stays. */
-    public static function normalize(string $code): string
+    /** @return list<array{code: string, name: string, politeness: bool}> the targets Supertext offers */
+    public static function targets(): array
     {
-        return SdkLanguageCodes::normalize($code);
+        return Languages::TARGETS;
     }
 
-    /** Source code to send: the bare language of the override, else of the locale ("en-GB" → "en"). */
-    public static function source(string $locale, string $override = ''): string
+    /**
+     * Target code to send.
+     *
+     * @param array<string, string> $mapping Pimcore language → Supertext code
+     *
+     * @throws SupertextException key `unsupported-language` when the language is neither mapped nor a Supertext code
+     */
+    public static function target(string $language, array $mapping = []): string
     {
-        return SdkLanguageCodes::source(trim($override) !== '' ? $override : $locale);
+        try {
+            return Languages::target($language, $mapping);
+        } catch (SdkException $e) {
+            throw SupertextClient::fromSdk($e);
+        }
     }
 
-    /** Target code to send: the override, else the locale; without a region it gets the default one ("de" → "de-DE"). */
-    public static function target(string $locale, string $override = ''): string
+    /** The target code, or null when the language isn't mapped (status screens). */
+    public static function targetOrNull(string $language, array $mapping = []): ?string
     {
-        return SdkLanguageCodes::target(trim($override) !== '' ? $override : $locale);
+        try {
+            return Languages::target($language, $mapping);
+        } catch (SdkException) {
+            return null;
+        }
+    }
+
+    /**
+     * Source code to send ("" stays "": auto-detect).
+     *
+     * @param array<string, string> $mapping Pimcore language → Supertext code
+     *
+     * @throws SupertextException key `unsupported-language`
+     */
+    public static function source(string $language, array $mapping = []): string
+    {
+        try {
+            return Languages::source($language, $mapping);
+        } catch (SdkException $e) {
+            throw SupertextClient::fromSdk($e);
+        }
+    }
+
+    /** Whether Supertext offers formal/informal for a target code; null for a code the SDK doesn't list. */
+    public static function supportsPoliteness(string $target): ?bool
+    {
+        return Languages::supportsPoliteness($target);
+    }
+
+    /**
+     * Politeness to send: "more"/"less" where the target offers it, "default" when none is set.
+     *
+     * @throws SupertextException key `unsupported-feature` when a tone is set for a target without it (never dropped silently)
+     */
+    public static function politeness(string $target, string $politeness): string
+    {
+        if (!\in_array($politeness, ['more', 'less'], true)) {
+            return 'default';
+        }
+        if (Languages::supportsPoliteness($target) === false) {
+            throw SupertextClient::fromSdk(new SdkException(SdkException::UNSUPPORTED_FEATURE, targetLang: $target, feature: 'politeness'));
+        }
+
+        return $politeness;
     }
 }

@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Supertext\PimcoreTranslationBundle;
 
+use Supertext\PimcoreTranslationBundle\Api\CallableTransport;
 use Supertext\PimcoreTranslationBundle\Api\LanguageCodes;
 use Supertext\PimcoreTranslationBundle\Api\SupertextClient;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
+use Supertext\PimcoreTranslationBundle\Sdk\Http\HttpTransport;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\InstallationReporter;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * Settings (bundle config + SUPERTEXT_API_KEY / SUPERTEXT_API_URL) and the API client.
+ * Settings (bundle config + SUPERTEXT_API_KEY / SUPERTEXT_API_URL / SUPERTEXT_VERSION_REPORTS) and the API client.
  */
 final class Settings
 {
@@ -61,9 +64,20 @@ final class Settings
     ) {
     }
 
+    /**
+     * An environment variable as Symfony sees it ($_SERVER/$_ENV from .env files, else the process
+     * environment); null when not set.
+     */
+    public static function env(string $name): ?string
+    {
+        $value = $_SERVER[$name] ?? $_ENV[$name] ?? getenv($name);
+
+        return \is_scalar($value) && $value !== false ? (string) $value : null;
+    }
+
     public function apiKey(): string
     {
-        return SupertextClient::normalizeKey((string) ($_SERVER['SUPERTEXT_API_KEY'] ?? $_ENV['SUPERTEXT_API_KEY'] ?? getenv('SUPERTEXT_API_KEY') ?: ''));
+        return SupertextClient::normalizeKey((string) self::env('SUPERTEXT_API_KEY'));
     }
 
     public function apiKeySource(): string
@@ -73,7 +87,7 @@ final class Settings
 
     public function baseUrl(): string
     {
-        $url = (string) ($_SERVER['SUPERTEXT_API_URL'] ?? $_ENV['SUPERTEXT_API_URL'] ?? getenv('SUPERTEXT_API_URL') ?: $this->config['api_url']);
+        $url = (string) (self::env('SUPERTEXT_API_URL') ?: $this->config['api_url']);
 
         return SupertextClient::baseUrlFor((string) $this->config['environment'], $url);
     }
@@ -83,24 +97,90 @@ final class Settings
         return (int) $this->config['timeout'];
     }
 
-    /** Supertext target code for a Pimcore language: the configured code, else BCP-47 with a region (de_CH -> de-CH, de -> de-DE). */
+    /**
+     * The language mapping: Pimcore language → Supertext code (`languages.<language>.code`, non-blank only).
+     *
+     * @return array<string, string>
+     */
+    public function mapping(): array
+    {
+        $mapping = [];
+        foreach ((array) $this->config['languages'] as $language => $options) {
+            $code = trim((string) ($options['code'] ?? ''));
+            if ($code !== '') {
+                $mapping[(string) $language] = $code;
+            }
+        }
+
+        return $mapping;
+    }
+
+    /**
+     * Supertext target code for a Pimcore language: the mapping, else the Pimcore code if it is a Supertext
+     * code (de_CH -> de-CH, es). No default regions.
+     *
+     * @throws SupertextException key `unsupported-language`
+     */
     public function languageCode(string $language): string
     {
-        return LanguageCodes::target($language, (string) ($this->config['languages'][$language]['code'] ?? ''));
+        return LanguageCodes::target($language, $this->mapping());
     }
 
-    /** Supertext source code for a Pimcore language: the bare language of the configured code or the language (en_GB -> en). */
+    /** The target code, or null while the language isn't mapped. */
+    public function languageCodeOrNull(string $language): ?string
+    {
+        return LanguageCodes::targetOrNull($language, $this->mapping());
+    }
+
+    /**
+     * Supertext source code for a Pimcore language (bare: en_GB -> en; a mapped en-US -> en).
+     *
+     * @throws SupertextException key `unsupported-language`
+     */
     public function sourceCode(string $language): string
     {
-        return LanguageCodes::source($language, (string) ($this->config['languages'][$language]['code'] ?? ''));
+        return LanguageCodes::source($language, $this->mapping());
     }
 
-    /** "more", "less" or "" (default). */
+    /** The configured tone: "more", "less" or "" (default). */
     public function politeness(string $language): string
     {
         $value = (string) ($this->config['languages'][$language]['politeness'] ?? '');
 
         return \in_array($value, ['more', 'less'], true) ? $value : '';
+    }
+
+    /**
+     * The tone to send for a target: the configured one, "default" if none.
+     *
+     * @throws SupertextException key `unsupported-feature` when a tone is set but Supertext offers none for the target
+     */
+    public function politenessFor(string $language, string $target): string
+    {
+        return LanguageCodes::politeness($target, $this->politeness($language));
+    }
+
+    /** "Send version information to Supertext": the `version_reports` setting, SUPERTEXT_VERSION_REPORTS wins. */
+    public function versionReports(): bool
+    {
+        return InstallationReporter::reportsEnabled((bool) ($this->config['version_reports'] ?? true), self::env('SUPERTEXT_VERSION_REPORTS'));
+    }
+
+    /** Whether SUPERTEXT_VERSION_REPORTS decides (rather than the `version_reports` setting). */
+    public function versionReportsFromEnvironment(): bool
+    {
+        $env = self::env('SUPERTEXT_VERSION_REPORTS');
+
+        // The variable decides when the setting makes no difference.
+        return InstallationReporter::reportsEnabled(true, $env) === InstallationReporter::reportsEnabled(false, $env);
+    }
+
+    /** Where version reports go: SUPERTEXT_REPORT_URL (tests), else the SDK's default. */
+    public function reportUrl(): ?string
+    {
+        $url = trim((string) self::env('SUPERTEXT_REPORT_URL'));
+
+        return $url !== '' ? $url : null;
     }
 
     /** @return list<string> */
@@ -115,12 +195,18 @@ final class Settings
         return array_values($this->config['document_editable_types']);
     }
 
-    public function client(): SupertextClient
+    /** HTTP through Symfony HttpClient (Pimcore's proxy settings apply), for the SDK's transport. */
+    private function send(): \Closure
     {
         $http = $this->httpClient;
-        $transport = static function (string $method, string $url, array $headers, ?string $body) use ($http): array {
+
+        return static function (string $method, string $url, array $headers, ?string $body, ?float $timeout = null) use ($http): array {
             try {
-                $response = $http->request($method, $url, ['headers' => $headers, 'body' => $body ?? '', 'timeout' => 60]);
+                $options = ['headers' => $headers, 'body' => $body ?? '', 'timeout' => min(60.0, $timeout ?? 60.0)];
+                if ($timeout !== null) {
+                    $options['max_duration'] = $timeout;
+                }
+                $response = $http->request($method, $url, $options);
                 $out = [];
                 foreach ($response->getHeaders(false) as $name => $values) {
                     $out[strtolower($name)] = implode(', ', $values);
@@ -131,7 +217,16 @@ final class Settings
                 throw new SupertextException('The Supertext service could not be reached. ' . $e->getMessage(), 0, $e, 'unreachable', [], $e->getMessage());
             }
         };
+    }
 
-        return new SupertextClient($this->apiKey(), $this->baseUrl(), $transport, $this->timeout(), (float) $this->config['poll_interval']);
+    /** The SDK transport for the version reporter and the API key check. */
+    public function transport(): HttpTransport
+    {
+        return new CallableTransport($this->send());
+    }
+
+    public function client(): SupertextClient
+    {
+        return new SupertextClient($this->apiKey(), $this->baseUrl(), $this->send(), $this->timeout(), (float) $this->config['poll_interval']);
     }
 }
