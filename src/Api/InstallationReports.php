@@ -171,7 +171,7 @@ final class InstallationReports
             ApiKeyCheck::INVALID => 'Supertext rejected the API key. Check that you copied the whole key, or generate a new one at supertext.com → Integrations → API (requires the Admin role): https://www.supertext.com/en/integrations/api. No Supertext account yet? Create one at supertext.com: https://www.supertext.com/person/en/account/signin',
             ApiKeyCheck::MISSING => 'No API key is set yet. No Supertext account yet? Create one at supertext.com: https://www.supertext.com/person/en/account/signin. Generate your API key at supertext.com → Integrations → API (requires the Admin role): https://www.supertext.com/en/integrations/api',
             ApiKeyCheck::UNREACHABLE => "The API key couldn't be checked because Supertext can't be reached. The settings are saved; check again later.",
-            default => sprintf("The API key couldn't be checked: Supertext answered with an error (%s). The settings are saved; check again later.", $check?->httpStatus ?? $check?->errorCode ?? '?'),
+            default => sprintf("The API key couldn't be checked: Supertext answered with an error (%s). The settings are saved; check again later.", $check->httpStatus ?? $check->errorCode ?? '?'),
         };
     }
 }
