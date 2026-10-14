@@ -10,13 +10,16 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ["8.4", "8.5"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
-          php-version: "8.4"
+          php-version: ${{ matrix.php }}
           tools: phpunit:11
       - name: Lint
         run: find src tests demo/project/src -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
@@ -49,7 +52,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -71,7 +74,7 @@ jobs:
         options: >-
           --health-cmd "mysqladmin ping -proot" --health-interval 5s --health-timeout 5s --health-retries 20
       opensearch:
-        image: opensearchproject/opensearch:2.19.1
+        image: opensearchproject/opensearch:2.19.6
         env:
           discovery.type: single-node
           DISABLE_SECURITY_PLUGIN: "true"
@@ -88,7 +91,7 @@ jobs:
         if: steps.key.outputs.ok == 'true'
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.key.outputs.ok == 'true'
         with:
           node-version: 22

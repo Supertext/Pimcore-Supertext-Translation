@@ -114,7 +114,7 @@ Protocol: [Commando-Center-Supertext-Translation](https://github.com/Supertext/C
 
 ## Local development
 
-Pimcore 2026 needs PHP 8.4, MySQL 8 or MariaDB 10.11, OpenSearch 2 (Studio's search index), and a product key (free Community Edition, see [below](#pimcore-product-key)). The demo project in `demo/project` installs the bundle from `demo/module` (a Composer path repository), which `demo/stage-module.sh` fills.
+Pimcore 2026 needs PHP 8.4 or 8.5, MySQL 8 or MariaDB 10.11, OpenSearch 2 (Studio's search index), and a product key (free Community Edition, see [below](#pimcore-product-key)). The demo project in `demo/project` installs the bundle from `demo/module` (a Composer path repository), which `demo/stage-module.sh` fills.
 
 ```bash
 cd assets && npm ci && npm run build && cd ..      # only after changing the plugin
@@ -165,7 +165,7 @@ cd assets && npm run check-types && npm run build
 - `tests/unit/StudioTranslationsTest.php`: the four `studio.*.yaml` files have the same keys, `{{placeholders}}` and links, and every error key the PHP code sends has an English text.
 - `tests/demo-check.sh` (CI): the demo image on MySQL and OpenSearch with the stand-in, started twice: demo accounts created once and never duplicated, no passwords in the log, the Editors role and the permission, `supertext:check`, the parent-page rule, translation of the sample pages and article as the editor into three languages (titles, slug keys, HTML with markup, link texts, unpublished pages, linked translations, notes), the skip on a second run, `supertext:check` (key check and language mapping), the public ping (200 with the challenge, 400 otherwise), and an `installed` report after a Studio request as administrator, sent to the stand-in's `POST /report` (`SUPERTEXT_REPORT_URL`), with the state stored in `settings_store` and no key in it.
 
-CI (`.github/workflows/ci.yml`) on every push and pull request: **test** (PHP lint, PHPUnit), **phpstan** (see *Code quality and security checks*), **studio** (type check and build of the plugin) and **demo** (builds `demo/Dockerfile`, runs `tests/demo-check.sh`). The demo job needs the repository secrets `PIMCORE_ENCRYPTION_SECRET`, `PIMCORE_INSTANCE_IDENTIFIER` and `PIMCORE_PRODUCT_KEY`, and skips itself without them (e.g. for pull requests from forks).
+CI (`.github/workflows/ci.yml`) on every push and pull request: **test** (PHP lint, PHPUnit; PHP 8.4 and 8.5), **phpstan** (see *Code quality and security checks*), **studio** (type check and build of the plugin) and **demo** (builds `demo/Dockerfile`, runs `tests/demo-check.sh`). The demo job needs the repository secrets `PIMCORE_ENCRYPTION_SECRET`, `PIMCORE_INSTANCE_IDENTIFIER` and `PIMCORE_PRODUCT_KEY`, and skips itself without them (e.g. for pull requests from forks).
 
 ## Demo (Railway)
 
@@ -259,7 +259,7 @@ Submitting the package to Packagist is planned.
 
 ## Conventions
 
-- PSR-12, PHP 8.4, typed properties; keep `src/Api/` free of Pimcore and Symfony classes.
+- PSR-12, PHP 8.4 (and 8.5), typed properties; keep `src/Api/` free of Pimcore and Symfony classes.
 - Studio strings in `translations/studio.{en,de,fr,it}.yaml`: every new string in all four (formal address: Sie, vous, Lei; Pimcore's own terms; never translate "Supertext", `{{placeholders}}` or URLs). Console messages, logs, notes and version comments stay English.
 - Messages from the API: the JSON carries the English `error`/`message` plus a `key` (`supertext.error.<key>`), `params` and Supertext's untranslated `detail`; `SupertextException` takes them as named arguments (`key: 'parent-missing'`), and the per-language results carry them too. `translate-modal.tsx` → `describe()` shows the translation (with the detail in brackets, and `supertext.error.key-help` after key errors) or the English text if the key is unknown. A new message needs its key in all four files.
 - Keep the three docs in `docs/` current with every change (see `CLAUDE.md`).

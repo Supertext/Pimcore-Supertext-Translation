@@ -5,7 +5,7 @@ For administrators and developers who install and set up the bundle. Editors fin
 ## Requirements
 
 - Pimcore 2026.1 or later with **Pimcore Studio** (`pimcore/studio-backend-bundle` and `pimcore/studio-ui-bundle`; tested with Pimcore 2026.3). The classic admin interface (`admin-ui-classic-bundle`) is not supported.
-- PHP 8.4 or later
+- PHP 8.4 or 8.5
 - At least two languages in Pimcore's system settings (see [Languages](#languages))
 - A Supertext account with an API key: [create an account or log in](https://www.supertext.com/person/en/account/signin), then [generate the key](https://www.supertext.com/en/integrations/api) (see [API key](#api-key))
 - The server must reach `https://api.supertext.com` over HTTPS
