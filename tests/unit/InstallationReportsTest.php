@@ -4,10 +4,11 @@ namespace Supertext\PimcoreTranslationBundle\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Supertext\PimcoreTranslationBundle\Api\InstallationReports;
+use Supertext\PimcoreTranslationBundle\PluginHealth\KeyCheck;
 use Supertext\PimcoreTranslationBundle\Sdk\Http\HttpRequest;
 use Supertext\PimcoreTranslationBundle\Sdk\Http\HttpResponse;
 use Supertext\PimcoreTranslationBundle\Sdk\Http\HttpTransport;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\ApiKeyCheck;
+use Supertext\PimcoreTranslationBundle\Sdk\Supertext;
 
 /** The Commando Center glue: state kept, when reports go out, ping answers. Never the live API or center. */
 final class InstallationReportsTest extends TestCase
@@ -89,6 +90,7 @@ final class InstallationReportsTest extends TestCase
         self::assertSame(['name' => 'Pimcore-Supertext-Translation', 'version' => '1.2.0'], $report['plugin']);
         self::assertSame(['name' => 'Pimcore', 'version' => '2026.3.1'], $report['system']);
         self::assertSame('PHP', $report['runtime']['name']);
+        self::assertSame(Supertext::SDK_VERSION, $report['sdk_version']);
         self::assertSame(['url' => self::SITE . '/supertext/ping'], $report['callback']);
         self::assertTrue($report['api_key_configured']);
         self::assertSame('ok', $report['api_key_check']['status']);
@@ -98,6 +100,19 @@ final class InstallationReportsTest extends TestCase
         $state = json_decode((string) $this->stored, true);
         self::assertSame('ok', $state['keyCheck']['status']);
         self::assertStringNotContainsString('secret-key-123', (string) $this->stored);
+    }
+
+    public function testAStateStoredByTheSdkReporterIsKept(): void
+    {
+        // As the Supertext SDK 0.2 reporter stored it: switching to Plugin Health sends no new "installed".
+        $this->stored = '{"reportedVersions":"1.2.0|2026.3.1|' . PHP_VERSION . '","reportedKeyStatus":"ok","lastFailureAt":null,'
+            . '"keyCheck":{"status":"ok","checkedAt":"2026-10-14T08:00:00Z","httpStatus":200,"errorCode":null,"fingerprint":"' . hash('sha256', 'key') . '"}}';
+        $before = $this->stored;
+
+        $result = $this->reports()->run(InstallationReports::ON_REQUEST, 'key', self::SITE);
+        self::assertNull($result?->event);
+        self::assertSame([], $this->requests);
+        self::assertSame($before, $this->stored, 'stored in the same format');
     }
 
     public function testLaterRequestsSendNothingUntilSomethingChanges(): void
@@ -195,12 +210,12 @@ final class InstallationReportsTest extends TestCase
 
     public function testCheckForTheUi(): void
     {
-        $check = new ApiKeyCheck('invalid', '2026-10-14T08:00:00Z', 401, 'UNAUTHORIZED', 'fingerprint');
+        $check = new KeyCheck('invalid', '2026-10-14T08:00:00Z', 401, 'UNAUTHORIZED', 'fingerprint');
 
         self::assertSame(['status' => 'invalid', 'checkedAt' => '2026-10-14T08:00:00Z', 'httpStatus' => 401, 'errorCode' => 'UNAUTHORIZED'], InstallationReports::checkToArray($check));
         self::assertNull(InstallationReports::checkToArray(null));
         self::assertStringContainsString('https://www.supertext.com/en/integrations/api', InstallationReports::checkMessage($check));
-        self::assertStringContainsString('(500)', InstallationReports::checkMessage(new ApiKeyCheck('error', '2026-10-14T08:00:00Z', 500)));
+        self::assertStringContainsString('(500)', InstallationReports::checkMessage(new KeyCheck('error', '2026-10-14T08:00:00Z', 500)));
         self::assertSame('https://x.ch/supertext/ping', InstallationReports::callbackUrl('https://x.ch/'));
     }
 }

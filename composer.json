@@ -34,7 +34,8 @@
     "autoload": {
         "psr-4": {
             "Supertext\\PimcoreTranslationBundle\\": "src/",
-            "Supertext\\PimcoreTranslationBundle\\Sdk\\": "lib/supertext-sdk/src/"
+            "Supertext\\PimcoreTranslationBundle\\Sdk\\": "lib/supertext-sdk/src/",
+            "Supertext\\PimcoreTranslationBundle\\PluginHealth\\": "lib/supertext-plugin-health/src/"
         }
     },
     "autoload-dev": {

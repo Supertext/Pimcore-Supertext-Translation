@@ -8,18 +8,24 @@
 
 namespace Supertext\PimcoreTranslationBundle\Api;
 
+use Supertext\PimcoreTranslationBundle\PluginHealth\CallableKeyChecker;
+use Supertext\PimcoreTranslationBundle\PluginHealth\InstallationReporter;
+use Supertext\PimcoreTranslationBundle\PluginHealth\KeyCheck;
+use Supertext\PimcoreTranslationBundle\PluginHealth\PingResponse;
+use Supertext\PimcoreTranslationBundle\PluginHealth\ReporterResult;
+use Supertext\PimcoreTranslationBundle\PluginHealth\ReporterState;
 use Supertext\PimcoreTranslationBundle\Sdk\Http\HttpTransport;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\ApiKeyCheck;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\InstallationReporter;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\PingResponse;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\ReporterResult;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\ReporterState;
+use Supertext\PimcoreTranslationBundle\Sdk\Supertext;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\Client;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\Protocol;
 
 /**
  * The bundle's side of the Supertext Commando Center (Commando-Center-Supertext-Translation →
  * docs/DEVELOPER.md → Report protocol): version reports, the automatic API key check and the ping
- * answer. The protocol is the SDK's InstallationReporter; this class only loads and stores its state
- * and builds it with what the bundle knows. Nothing here ever throws.
+ * answer. The protocol is Supertext Plugin Health's InstallationReporter (bundled in
+ * lib/supertext-plugin-health); the key check is the Supertext SDK's Client::checkApiKey(). This class
+ * only loads and stores the reporter's state and builds it with what the bundle knows. Nothing here
+ * ever throws.
  *
  * Has no Pimcore or Symfony dependencies (src/Reporting/ supplies the Pimcore parts).
  */
@@ -51,6 +57,7 @@ final class InstallationReports
      * @param callable(): ?string    $loadState the stored JSON state (null: none yet)
      * @param callable(string): void $saveState stores the JSON state
      * @param bool                   $enabled   "Send version information to Supertext" (InstallationReporter::reportsEnabled())
+     * @param HttpTransport|null     $transport the SDK transport, for the key check and (wrapped in ReportTransport) the reports
      * @param callable(string): void|null $log  debug messages (never contain the key)
      * @param (\Closure(): float)|null $now     wall-clock Unix time (tests)
      */
@@ -78,7 +85,7 @@ final class InstallationReports
         return rtrim($siteUrl, '/') . self::PING_PATH;
     }
 
-    /** The answer of the public ping route: status, headers and body exactly as the SDK gives them. */
+    /** The answer of the public ping route: status, headers and body exactly as Plugin Health gives them. */
     public function ping(mixed $challenge): PingResponse
     {
         return InstallationReporter::pingResponse(\is_string($challenge) ? $challenge : null, self::PLUGIN_NAME, $this->enabled);
@@ -92,11 +99,21 @@ final class InstallationReports
             pluginName: self::PLUGIN_NAME,
             pluginVersion: $this->pluginVersion,
             systemName: self::SYSTEM_NAME,
+            keyChecker: new CallableKeyChecker(
+                fn (string $apiKey) => (new Client(
+                    $apiKey,
+                    baseUrl: $this->apiBaseUrl,
+                    userAgent: self::PLUGIN_NAME . '/' . $this->pluginVersion,
+                    transport: $this->transport,
+                    now: $this->now,
+                ))->checkApiKey(),
+                [Protocol::class, 'apiKeyFingerprint'],
+            ),
             systemVersion: $this->systemVersion,
+            sdkVersion: Supertext::SDK_VERSION,
             callbackUrl: self::callbackUrl($siteUrl),
             reportUrl: $this->reportUrl,
-            transport: $this->transport,
-            apiBaseUrl: $this->apiBaseUrl,
+            transport: $this->transport === null ? null : new ReportTransport($this->transport),
             now: $this->now,
         );
     }
@@ -147,7 +164,7 @@ final class InstallationReports
     }
 
     /** The latest API key check, for the status output. */
-    public function lastCheck(): ?ApiKeyCheck
+    public function lastCheck(): ?KeyCheck
     {
         return $this->state()->keyCheck;
     }
@@ -157,20 +174,20 @@ final class InstallationReports
      *
      * @return array{status: string, checkedAt: string, httpStatus: int|null, errorCode: string|null}|null
      */
-    public static function checkToArray(?ApiKeyCheck $check): ?array
+    public static function checkToArray(?KeyCheck $check): ?array
     {
         return $check === null ? null : ['status' => $check->status, 'checkedAt' => $check->checkedAt, 'httpStatus' => $check->httpStatus, 'errorCode' => $check->errorCode];
     }
 
     /** The key check in English (the Commando Center's texts), for the console and the log. */
-    public static function checkMessage(?ApiKeyCheck $check): string
+    public static function checkMessage(?KeyCheck $check): string
     {
         return match ($check?->status) {
             null => 'Not checked yet.',
-            ApiKeyCheck::OK => 'API key checked: the connection to Supertext works.',
-            ApiKeyCheck::INVALID => 'Supertext rejected the API key. Check that you copied the whole key, or generate a new one at supertext.com → Integrations → API (requires the Admin role): https://www.supertext.com/en/integrations/api. No Supertext account yet? Create one at supertext.com: https://www.supertext.com/person/en/account/signin',
-            ApiKeyCheck::MISSING => 'No API key is set yet. No Supertext account yet? Create one at supertext.com: https://www.supertext.com/person/en/account/signin. Generate your API key at supertext.com → Integrations → API (requires the Admin role): https://www.supertext.com/en/integrations/api',
-            ApiKeyCheck::UNREACHABLE => "The API key couldn't be checked because Supertext can't be reached. The settings are saved; check again later.",
+            KeyCheck::OK => 'API key checked: the connection to Supertext works.',
+            KeyCheck::INVALID => 'Supertext rejected the API key. Check that you copied the whole key, or generate a new one at supertext.com → Integrations → API (requires the Admin role): https://www.supertext.com/en/integrations/api. No Supertext account yet? Create one at supertext.com: https://www.supertext.com/person/en/account/signin',
+            KeyCheck::MISSING => 'No API key is set yet. No Supertext account yet? Create one at supertext.com: https://www.supertext.com/person/en/account/signin. Generate your API key at supertext.com → Integrations → API (requires the Admin role): https://www.supertext.com/en/integrations/api',
+            KeyCheck::UNREACHABLE => "The API key couldn't be checked because Supertext can't be reached. The settings are saved; check again later.",
             default => sprintf("The API key couldn't be checked: Supertext answered with an error (%s). The settings are saved; check again later.", $check->httpStatus ?? $check->errorCode ?? '?'),
         };
     }

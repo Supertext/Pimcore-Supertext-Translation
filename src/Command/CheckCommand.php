@@ -7,8 +7,8 @@ namespace Supertext\PimcoreTranslationBundle\Command;
 use Pimcore\Tool;
 use Supertext\PimcoreTranslationBundle\Api\InstallationReports;
 use Supertext\PimcoreTranslationBundle\Api\LanguageCodes;
+use Supertext\PimcoreTranslationBundle\PluginHealth\KeyCheck;
 use Supertext\PimcoreTranslationBundle\Reporting\Reporting;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\ApiKeyCheck;
 use Supertext\PimcoreTranslationBundle\Settings;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -57,10 +57,10 @@ final class CheckCommand extends Command
         $result = $this->reporting->run(InstallationReports::REPORT_CHECK);
         // Without a site URL (no request, no domain in Pimcore's system settings) nothing is reported; check the key anyway.
         $check = $result->check ?? $this->settings->client()->checkApiKey();
-        $ok = $check->status === ApiKeyCheck::OK;
+        $ok = $check->status === KeyCheck::OK;
         $message = InstallationReports::checkMessage($check);
         $output->writeln($ok ? "<info>{$message}</info>" : "<error>{$message}</error>");
-        if ($check->status === ApiKeyCheck::MISSING) {
+        if ($check->status === KeyCheck::MISSING) {
             $output->writeln('Set the SUPERTEXT_API_KEY environment variable.');
         }
 

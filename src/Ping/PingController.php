@@ -13,7 +13,7 @@ use Symfony\Component\Routing\Attribute\Route;
  * GET /supertext/ping?challenge=<c>: the public endpoint the Supertext Commando Center calls to see
  * that the site is reachable. No login, no session, outside Studio's firewall; the answer says
  * `Cache-Control: no-store`, so Pimcore's full page cache doesn't keep it. 404 while version reports
- * are off. Status, headers and body come from the SDK (InstallationReporter::pingResponse()).
+ * are off. Status, headers and body come from Supertext Plugin Health (InstallationReporter::pingResponse()).
  */
 final class PingController
 {

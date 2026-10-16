@@ -28,6 +28,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - A formal/informal tone configured for a language Supertext offers none for (English, Swiss German, Romansh, Albanian, Serbian) is no longer sent: the dialog marks the language *No formal/informal tone*, and translating into it reports *Supertext offers no formal or informal tone for this language*.
 - `POST /supertext/settings/test` returns the API key check (`{ok, check, message}`, always HTTP 200 for administrators).
 - Bundled Supertext SDK 0.2.1 (commit `eeba8fa`, `V1` namespace): the API's language list, the key check and the version reports.
+- Version reports, the API key check result and the reachability ping now use Supertext Plugin Health 0.1.0 (bundled in `lib/supertext-plugin-health`); Supertext SDK updated to 0.3.0. No change for sites: settings and stored state stay as they are.
 - Studio plugin rebuilt against `@pimcore/studio-ui-bundle` 2026.3.2 (was 2026.3.1).
 
 ### Added

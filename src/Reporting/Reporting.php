@@ -9,9 +9,9 @@ use Pimcore\Tool;
 use Pimcore\Version;
 use Psr\Log\LoggerInterface;
 use Supertext\PimcoreTranslationBundle\Api\InstallationReports;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\ApiKeyCheck;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\PingResponse;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\ReporterResult;
+use Supertext\PimcoreTranslationBundle\PluginHealth\KeyCheck;
+use Supertext\PimcoreTranslationBundle\PluginHealth\PingResponse;
+use Supertext\PimcoreTranslationBundle\PluginHealth\ReporterResult;
 use Supertext\PimcoreTranslationBundle\Settings;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -122,7 +122,7 @@ final class Reporting implements EventSubscriberInterface
         }
     }
 
-    public function lastCheck(): ?ApiKeyCheck
+    public function lastCheck(): ?KeyCheck
     {
         try {
             return $this->core()->lastCheck();

@@ -8,8 +8,8 @@ use Supertext\PimcoreTranslationBundle\Api\CallableTransport;
 use Supertext\PimcoreTranslationBundle\Api\LanguageCodes;
 use Supertext\PimcoreTranslationBundle\Api\SupertextClient;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
+use Supertext\PimcoreTranslationBundle\PluginHealth\InstallationReporter;
 use Supertext\PimcoreTranslationBundle\Sdk\Http\HttpTransport;
-use Supertext\PimcoreTranslationBundle\Sdk\V1\InstallationReporter;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -175,7 +175,7 @@ final class Settings
         return InstallationReporter::reportsEnabled(true, $env) === InstallationReporter::reportsEnabled(false, $env);
     }
 
-    /** Where version reports go: SUPERTEXT_REPORT_URL (tests), else the SDK's default. */
+    /** Where version reports go: SUPERTEXT_REPORT_URL (tests), else Plugin Health's default. */
     public function reportUrl(): ?string
     {
         $url = trim((string) self::env('SUPERTEXT_REPORT_URL'));
@@ -219,7 +219,7 @@ final class Settings
         };
     }
 
-    /** The SDK transport for the version reporter and the API key check. */
+    /** The SDK transport for the API key check and (through Api\ReportTransport) the version reports. */
     public function transport(): HttpTransport
     {
         return new CallableTransport($this->send());
