@@ -6,7 +6,7 @@ name: E2E
 # 2. against the stand-in API (tests/docs): the docs screenshots, so the images don't change
 #    with every machine translation. Changed images become a pull request.
 # Pimcore 2026 only starts with a registered product key (secrets PIMCORE_ENCRYPTION_SECRET,
-# PIMCORE_INSTANCE_IDENTIFIER, PIMCORE_PRODUCT_KEY); without them the whole run is skipped.
+# PIMCORE_INSTANCE_IDENTIFIER, PIMCORE_PRODUCT_KEY); without them only the language list runs.
 # See "End-to-end tests" and "Docs screenshots" in docs/DEVELOPER.md.
 
 on:
@@ -79,20 +79,40 @@ jobs:
           if [ -n "$PIMCORE_PRODUCT_KEY" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::Secret PIMCORE_PRODUCT_KEY is not set: Pimcore 2026 can't start, skipping the E2E run (see docs/DEVELOPER.md → Pimcore product key)."
+            echo "::warning::Secret PIMCORE_PRODUCT_KEY is not set: Pimcore 2026 can't start, skipping everything but the language list (see docs/DEVELOPER.md → Pimcore product key)."
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.pimcore.outputs.present == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.pimcore.outputs.present == 'true'
         with:
           node-version: '22'
           package-manager-cache: false
+
+      # --- 1. Real Supertext API (the language list needs no Pimcore) ----------------------
+      - name: Check for the API key
+        id: key
+        env:
+          SUPERTEXT_API_KEY: ${{ secrets.SUPERTEXT_API_KEY }}
+        run: |
+          if [ -n "$SUPERTEXT_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Secret SUPERTEXT_API_KEY is not set: skipping the tests against the real Supertext API (see docs/DEVELOPER.md → End-to-end tests)."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Language list against the real API
+        if: steps.key.outputs.present == 'true'
+        env:
+          SUPERTEXT_API_KEY: ${{ secrets.SUPERTEXT_API_KEY }}
+          E2E_SOURCE: en
+          E2E_TARGETS: de-CH,fr-CH,it-CH
+        run: |
+          node tests/e2e/features.mjs
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         if: steps.pimcore.outputs.present == 'true'
@@ -127,22 +147,8 @@ jobs:
           (cd tests/e2e && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium)
           (cd tests/docs && npm ci --no-audit --no-fund && npx playwright install chromium)
 
-      # --- 1. Real Supertext API ----------------------------------------------------------
-      - name: Check for the API key
-        id: key
-        if: steps.pimcore.outputs.present == 'true'
-        env:
-          SUPERTEXT_API_KEY: ${{ secrets.SUPERTEXT_API_KEY }}
-        run: |
-          if [ -n "$SUPERTEXT_API_KEY" ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Secret SUPERTEXT_API_KEY is not set: skipping the tests against the real Supertext API (see docs/DEVELOPER.md → End-to-end tests)."
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Start the demo against the real API
-        if: steps.key.outputs.present == 'true'
+        if: steps.key.outputs.present == 'true' && steps.pimcore.outputs.present == 'true'
         env:
           SUPERTEXT_API_KEY: ${{ secrets.SUPERTEXT_API_KEY }}
           PIMCORE_ENCRYPTION_SECRET: ${{ secrets.PIMCORE_ENCRYPTION_SECRET }}
@@ -161,17 +167,8 @@ jobs:
           timeout 900 sh -c "until curl -sf -o /dev/null $LIVE_URL/pimcore-studio/; do sleep 5; done" || { docker logs demo-live; exit 1; }
           docker logs demo-live 2>&1 | grep '\[demo\]' || true
 
-      - name: Language list against the real API
-        if: steps.key.outputs.present == 'true'
-        env:
-          SUPERTEXT_API_KEY: ${{ secrets.SUPERTEXT_API_KEY }}
-          E2E_SOURCE: en
-          E2E_TARGETS: de-CH,fr-CH,it-CH
-        run: |
-          node tests/e2e/features.mjs
-
       - name: End-to-end test against the real API
-        if: steps.key.outputs.present == 'true'
+        if: steps.key.outputs.present == 'true' && steps.pimcore.outputs.present == 'true'
         working-directory: tests/e2e
         env:
           STUDIO_URL: ${{ env.LIVE_URL }}
