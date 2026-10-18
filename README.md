@@ -15,6 +15,17 @@ Open a page or a data object, click **Translate with Supertext** in the toolbar,
 
 ![The "Translate with Supertext" dialog in Pimcore Studio: From English, Into German, French and Italian (Switzerland)](docs/images/document-translate-dialog.png)
 
+## Export for translation and import (XLIFF and HTML)
+
+Besides translating with Supertext AI, you can export a document or data object as a file, have it translated elsewhere and import the result.
+
+- **Where:** the *Export for translation* and *Import translation* modes of the *Translate with Supertext* dialog in Pimcore Studio.
+- **Formats:** XLIFF 1.2 for translation tools such as Trados, memoQ or Phrase (formatting travels as protected tags; several target languages in one file), or HTML (one language per file) for translators or Supertext's web app, which keeps the file's head and `data-st-id` attributes, so the translated file imports as it is.
+- **Import:** the file says what it was exported from and for which language. The translations are written with the same rules as a Supertext AI translation, and a summary shows what was imported and what was skipped: source changed since the export (import those anyway with *Also import texts whose source changed since the export*), not translated, formatting changed, not in the file.
+- **Safe:** files over 10 MB, files from another system and translations that add markup the source doesn't have are refused; uploaded files aren't stored.
+
+Details: [user guide](docs/USER_GUIDE.md#export-for-translation-and-import-the-translated-file).
+
 ## Documentation
 
 | Guide | For |
