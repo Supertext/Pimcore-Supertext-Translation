@@ -7,7 +7,7 @@
         window.alternativePluginExportPaths = {}
       }
 
-      window.pluginRemotes.supertext_translation_bundle = "/bundles/supertexttranslation/build/09957328aff0/static/js/remoteEntry.js"
+      window.pluginRemotes.supertext_translation_bundle = "/bundles/supertexttranslation/build/be93c68792aa/static/js/remoteEntry.js"
 
       
     

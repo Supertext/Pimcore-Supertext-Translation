@@ -22,9 +22,10 @@ A Symfony bundle (`Supertext\PimcoreTranslationBundle`) with a Pimcore Studio UI
 | `src/Service/ObjectTranslator.php` | Data objects: the localized fields of one language into others |
 | `src/Service/History.php` | One `Element\Note` (type `supertext`) per translation, on the source element; also the "Translated with Supertext on" dates |
 | `src/Controller/SupertextController.php` | Studio API endpoints (below) |
+| `src/Api/FileExchange.php`, `src/Api/FileElements.php`, `src/Service/TranslationFileElements.php` | *Export for translation* / *Import translation* (XLIFF 1.2 and HTML files, SDK `TranslationFiles`; see *Translation files*) |
 | `src/Command/` | `supertext:translate`, `supertext:check` (also prints the installed version) |
 | `src/Webpack/WebpackEntryPointProvider.php` | Registers the plugin's build (`public/build/*/entrypoints.json`) with Studio |
-| `assets/js/src/` | The Studio plugin (React, TypeScript, Module Federation via rsbuild): `index.ts` registers the buttons in the document and data object editor toolbars, `components/translate-modal.tsx` is the dialog, `api.ts` the fetch calls |
+| `assets/js/src/` | The Studio plugin (React, TypeScript, Module Federation via rsbuild): `index.ts` registers the buttons in the document and data object editor toolbars, `components/translate-modal.tsx` is the dialog (modes *Translate with Supertext*, *Export for translation*, *Import translation*), `components/translation-files.tsx` the export and import panels, `api.ts` the fetch calls |
 | `public/build/<hash>/` | The built plugin, committed (installs need no Node.js) |
 | `translations/studio.{en,de,fr,it}.yaml` | Studio strings (dialog, permission label, `supertext.error.*` for the messages from the API), in English, German, French and Italian |
 | `config/` | Services, the route imports (`config/pimcore/routing.yaml`: the Studio API with Studio's prefix, the public ping without) |
@@ -35,6 +36,8 @@ A Symfony bundle (`Supertext\PimcoreTranslationBundle`) with a Pimcore Studio UI
 | --- | --- |
 | `GET /supertext/elements/{document\|data-object}/{id}` | Languages and their state for the dialog: exists / has content, editable, parent ready (documents), last Supertext translation, `supertext` (the target code; `null`: not mapped), `toneUnavailable`; whether a key is set; the account and key links; for administrators `status: {check, reports, reportsFromEnvironment}` |
 | `POST /supertext/elements/{type}/{id}/translate` | `{source?, targets[], overwrite}` → `{results: [{language, status: translated\|skipped\|error, message, documentId?, path?, created?}]}` |
+| `GET /supertext/elements/{type}/{id}/export` | `?targets=de_CH,fr_CH&format=xliff\|html&source=en&overwrite=1` → the translation file (`Content-Disposition: attachment`), or a JSON error (`nothing-to-translate`, `html-one-language`, `choose-target`, …) |
+| `POST /supertext/import` | multipart `file` (≤ 10 MB), `includeChanged`, `overwrite`; header `X-Supertext-Request: 1` → `{jobs: [{reference, type, id, language, error: {message, key, params}\|null, counts: {imported, sourceChanged, untranslated, invalidMarkup, missing, kept}}]}` |
 | `GET /supertext/settings` | Version, API address, key status, `status` (latest key check, version reports), languages with Supertext code (`null`: not mapped), politeness and `politenessSupported` |
 | `POST /supertext/settings/test` | The SDK's key check (cost-free), stored and reported (`testConnection`) → `{ok, check: {status, checkedAt, httpStatus, errorCode}, message}`; always 200 for administrators |
 
@@ -94,15 +97,27 @@ The protocol above, the retries, the language list and the `data-st-id` document
 - Its HTTP interface has the same shape as the SDK's; `src/Api/ReportTransport.php` sends the reports through the bundle's SDK transport (Symfony HttpClient), so both use Pimcore's proxy settings.
 - Its stored state is the same JSON the SDK 0.1–0.2 reporter stored, so installations that update keep their history (no new `installed` report).
 
+## Translation files
+
+*Export for translation* and *Import translation*: an element's texts as an XLIFF 1.2 or HTML file, translated outside the API, and the translated file written back. File formats, checksums and the safety checks of imported files are the SDK's `Supertext\PimcoreTranslationBundle\Sdk\Files\TranslationFiles` (SDK 0.5.0, integration guide → *Translation files: XLIFF and HTML*); the bundle only collects, finds and writes back.
+
+- **Core** (`src/Api/FileExchange.php`, no Pimcore or Symfony classes, `tests/unit/FileExchangeTest.php`): `export()` builds one SDK `FileJob` per target language from exactly the segments an API translation sends (`FileElements::segments()`: `DocumentTranslator::units()` of the latest version, keys `meta:title`, `property:navigation_name`, `editable:<name>`; for objects the localized field names), skipping languages that keep their translation (documents: a linked translation exists; objects: the language has text) unless *overwrite*. `import()` refuses files over 10,000,000 bytes, `read()`s the file and per job checks `plugin` (`Pimcore-Supertext-Translation`, else `file-other-system`), parses `reference` (else `file-not-found`), checks both languages are valid Pimcore languages (`file-no-language`), loads the element with *view* permission (`file-not-found`), checks the user may write the target (`file-not-allowed`), collects the current segments the same way and calls `importTranslations()`. `ok` results (and `source_changed` with *include changed*) are written in one go; `untranslated`, `invalid_markup` and `missing` are only counted; a kept target counts all of the file's segments as *kept*.
+- **Reference** of a job: `<type>:<id>:<source language>:<target language>`, type `document` or `object`, e.g. `document:12:en:de_CH`, `object:7:en:fr_CH` (ids and Pimcore language codes, never titles; `FileExchange::reference()` / `parseReference()`). A document's source is its own language.
+- **Languages in the file:** the Supertext codes of the mapping (`LanguageCodes::source()`/`target()` with `Settings::mapping()`); a language without one is written as its Pimcore code with `-`, so it never blocks the export.
+- **Write-back:** `DocumentTranslator::writeTranslations()` and `ObjectTranslator::writeTranslations()` reuse the API path (`create()`/`update()` take the translations instead of calling Supertext): a new unpublished linked translation (parent translation required, key from the translated navigation name) or a new version, the Supertext note, permission checks (`parent-missing`, `create-not-allowed`, `edit-not-allowed`, `language-not-allowed`).
+- **Studio:** the dialog's `Segmented` switches modes. Export fetches the file and saves it through a blob link (Studio's session cookie authenticates the fetch); import posts `FormData` with the header `X-Supertext-Request: 1`, which a cross-site form can't send (Studio has no CSRF token of its own for multipart requests). File names: `pimcore-<document|object>-<id>-<language>.xlf` / `.html`, `pimcore-<type>-<id>.xlf` for several languages.
+- `tests/demo-check.sh` exports the sample article as the editor through the Studio API, fills one `<target>`, imports it and checks the summary and the Supertext note.
+
 ## Language codes
 
 Supertext accepts exactly the codes its `GET features` lists (the SDK's `Languages::TARGETS`/`SOURCES`, October 2026): targets regional only for de/en/fr/it/pt (`de-CH`, `en-US`, `pt-BR`), `zh-Hans`/`zh-Hant`, `sr-Latn`/`sr-Cyrl`, `gsw-u-sd-chzh`/`chbe`, and **bare for all others** (`es`, `nl`, `sl`); sources are bare (`en`). Anything else is HTTP 404 `INVALID_LANGUAGE_PAIR` (bare `de`, `es-ES`, `sl-SI`, `zh-CN`). No pair within one language.
 
-**No guessing.** `src/Api/LanguageCodes.php` (the SDK's `Languages`; no CMS dependency, `tests/unit/LanguageCodesTest.php`) resolves a Pimcore language with **one mapping for both directions**, `Settings::mapping()` (= `supertext_translation.languages.<language>.code`, non-blank entries):
+**No guessing beyond the SDK's defaults.** `src/Api/LanguageCodes.php` (the SDK's `Languages`; no CMS dependency, `tests/unit/LanguageCodesTest.php`) resolves a Pimcore language with **one mapping for both directions**, `Settings::mapping()` (= `supertext_translation.languages.<language>.code`, non-blank entries):
 
 1. the mapping's value, if there is one (keys compared ignoring case and `_`/`-`; the value is sent as it is, even if the SDK doesn't list it);
 2. else the Pimcore code if it equals a Supertext code apart from case and `_`/`-` (`de_CH` → `de-CH`, `es`);
-3. else `SupertextException` key `unsupported-language`, and nothing is sent for that language (the per-language result says so; the other languages are translated).
+3. else, for targets (since SDK 0.4.0), the SDK's default: `de` → `de-DE`, `en` → `en-US`, `zh_CN` → `zh-Hans`, `es_ES` → `es`, `nl_NL` → `nl` (nothing for `de_LI`, `en_IE`, `fr_BE`, `sr_RS`);
+4. else `SupertextException` key `unsupported-language`, and nothing is sent for that language (the per-language result says so; the other languages are translated).
 
 Sources use the same mapping in their bare form (`en` mapped to `en-GB` → `en`; `en_GB` → `en`). `Settings::languageCodeOrNull()` feeds the dialog (`supertext: null` → *No Supertext language*, not selectable), `GET /supertext/settings` and `supertext:check`.
 
@@ -168,11 +183,12 @@ cd assets && npm run check-types && npm run build
 ```
 
 - `tests/unit/SupertextClientTest.php`: the SDK wrapper: protocol, auth header and prefix, codes sent as given, 429 retries, error keys (language pair, unsupported tone included), clean-up, segments (plain text, HTML, blank, missing), splitting into several documents, the non-throwing key check.
-- `tests/unit/LanguageCodesTest.php`: exact Supertext codes, no default regions (`unsupported-language`), the mapping (case and `_`/`-`, blank entries, unknown codes sent as they are), bare sources from the same mapping, politeness only where offered.
+- `tests/unit/LanguageCodesTest.php`: exact Supertext codes, only the SDK's default targets (`de` → `de-DE`; `fr_BE` is `unsupported-language`), the mapping (case and `_`/`-`, blank entries, unknown codes sent as they are), bare sources from the same mapping, politeness only where offered.
 - `tests/unit/SettingsTest.php`: the mapping from the bundle configuration, tone per target, `version_reports` on by default and `SUPERTEXT_VERSION_REPORTS` winning, `SUPERTEXT_REPORT_URL`.
 - `tests/unit/InstallationReportsTest.php` (fake transport, never the live API or center): one `installed` report with the right plugin, system, SDK version, site and callback URL and without the key; a state stored by the SDK 0.2 reporter kept as it is (no new report); nothing on later requests until the key changes; a 401/403 reported once; `testConnection` and the `check` report; nothing sent with reports off; the one-hour back-off; no site URL; storage errors never thrown; ping answers.
+- `tests/unit/FileExchangeTest.php` (fake `FileElements`): reference round trip and file names, export with the services' keys and the mapping (unmapped languages as Pimcore codes, kept languages left out), HTML with one language, export errors, import with another plugin, an unknown reference or language, an element the user may not edit, `ok` written, `source_changed` only with the option, `untranslated`/`invalid_markup`/`missing` never written, kept translations, a write error, files too large, with a DTD or without metadata.
 - `tests/unit/StudioTranslationsTest.php`: the four `studio.*.yaml` files have the same keys, `{{placeholders}}` and links, and every error key the PHP code sends has an English text.
-- `tests/demo-check.sh` (CI): the demo image on MySQL and OpenSearch with the stand-in, started twice: demo accounts created once and never duplicated, no passwords in the log, the Editors role and the permission, `supertext:check`, the parent-page rule, translation of the sample pages and article as the editor into three languages (titles, slug keys, HTML with markup, link texts, unpublished pages, linked translations, notes), the skip on a second run, `supertext:check` (key check and language mapping), the public ping (200 with the challenge, 400 otherwise), and an `installed` report after a Studio request as administrator, sent to the stand-in's `POST /report` (`SUPERTEXT_REPORT_URL`), with the state stored in `settings_store` and no key in it.
+- `tests/demo-check.sh` (CI): the demo image on MySQL and OpenSearch with the stand-in, started twice: demo accounts created once and never duplicated, no passwords in the log, the Editors role and the permission, `supertext:check`, the parent-page rule, translation of the sample pages and article as the editor into three languages (titles, slug keys, HTML with markup, link texts, unpublished pages, linked translations, notes), the skip on a second run, `supertext:check` (key check and language mapping), the public ping (200 with the challenge, 400 otherwise), an export → import round trip of the article through the Studio API, and an `installed` report after a Studio request as administrator, sent to the stand-in's `POST /report` (`SUPERTEXT_REPORT_URL`), with the state stored in `settings_store` and no key in it.
 
 CI (`.github/workflows/ci.yml`) on every push and pull request: **test** (PHP lint, PHPUnit; PHP 8.4 and 8.5), **phpstan** (see *Code quality and security checks*), **studio** (type check and build of the plugin) and **demo** (builds `demo/Dockerfile`, runs `tests/demo-check.sh`). The demo job needs the repository secrets `PIMCORE_ENCRYPTION_SECRET`, `PIMCORE_INSTANCE_IDENTIFIER` and `PIMCORE_PRODUCT_KEY`, and skips itself without them (e.g. for pull requests from forks).
 
@@ -282,5 +298,6 @@ Submitting the package to Packagist is planned.
 - Data objects: localized fields at the top level only; field collections, object bricks, blocks and classification stores are not translated yet. Asset metadata and shared translations (*Translations*) are not covered.
 - Documents: renderlet, snippet and relation editables are copied, not translated.
 - Pimcore Studio 2026.3 only opens data objects for users with the *Classes* permission.
+- Export for translation: one element per file (no export of several elements into one file yet); no console commands for translation files.
 - Not on Packagist yet.
 - Human (professional) translation orders are not supported yet (the WordPress plugin has them).

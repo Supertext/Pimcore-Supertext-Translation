@@ -53,10 +53,11 @@ final class SettingsTest extends TestCase
         self::assertSame('de-CH', $settings->languageCode('de'));
         self::assertSame('fr-CH', $settings->languageCode('fr_CH'), 'exact Supertext code, no mapping needed');
         self::assertSame('en', $settings->sourceCode('en'), 'the mapped en-US is sent as source en');
-        self::assertNull($settings->languageCodeOrNull('it'));
+        self::assertSame('it-IT', $settings->languageCodeOrNull('it'), 'the default since SDK 0.4.0');
+        self::assertNull($settings->languageCodeOrNull('fr_BE'));
 
         $this->expectException(SupertextException::class);
-        $settings->languageCode('it');
+        $settings->languageCode('fr_BE');
     }
 
     public function testToneOnlyWhereSupertextOffersIt(): void

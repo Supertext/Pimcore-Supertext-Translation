@@ -97,3 +97,69 @@ export const translateElement = async (
     method: 'POST',
     body: JSON.stringify(payload)
   })).results
+
+export type FileFormat = 'xliff' | 'html'
+
+export type ImportCount = 'imported' | 'sourceChanged' | 'untranslated' | 'invalidMarkup' | 'missing' | 'kept'
+
+/** One job of an imported translation file (one element in one language). */
+export interface ImportedJob {
+  reference: string
+  type: ElementKind | ''
+  id: number
+  language: string
+  error: ServerMessage | null
+  counts: Record<ImportCount, number>
+}
+
+const failure = async (response: Response): Promise<ApiError> => {
+  const body = await response.json().catch(() => ({}))
+  return new ApiError(
+    typeof body?.error === 'string' ? body.error : (body?.message ?? `HTTP ${response.status}`),
+    typeof body?.key === 'string' ? body.key : undefined,
+    typeof body?.params === 'object' && body.params !== null ? body.params : undefined,
+    typeof body?.detail === 'string' ? body.detail : undefined
+  )
+}
+
+/** Export for translation: downloads the file and returns its name. */
+export const exportElement = async (
+  type: ElementKind, id: number, payload: { source?: string, targets: string[], format: FileFormat, overwrite: boolean }
+): Promise<string> => {
+  const query = new URLSearchParams({ targets: payload.targets.join(','), format: payload.format, overwrite: payload.overwrite ? '1' : '0' })
+  if (payload.source !== undefined) {
+    query.set('source', payload.source)
+  }
+  const response = await fetch(`${getPrefix()}/supertext/elements/${type}/${id}/export?${query.toString()}`, { credentials: 'include' })
+  if (!response.ok) {
+    throw await failure(response)
+  }
+  const name = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? `pimcore-${type}-${id}.xlf`
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => { URL.revokeObjectURL(url) }, 1000)
+  return name
+}
+
+/** Import translation: uploads one XLIFF or HTML file. */
+export const importFile = async (file: File, options: { includeChanged: boolean, overwrite: boolean }): Promise<ImportedJob[]> => {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('includeChanged', options.includeChanged ? '1' : '0')
+  form.append('overwrite', options.overwrite ? '1' : '0')
+  const response = await fetch(`${getPrefix()}/supertext/import`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { Accept: 'application/json', 'X-Supertext-Request': '1' },
+    body: form
+  })
+  if (!response.ok) {
+    throw await failure(response)
+  }
+  return (await response.json() as { jobs: ImportedJob[] }).jobs
+}

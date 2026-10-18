@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Export for translation (XLIFF 1.2 or HTML) and import of translated files; Supertext SDK 0.5.0. The *Translate with Supertext* dialog has two more modes: *Export for translation* downloads the document's or object's texts as `pimcore-document-<id>-<language>.xlf` or `.html`, *Import translation* uploads a translated file (up to 10 MB, read in memory) and writes it back like a translation with Supertext (unpublished translation or new version), with a summary per element and language: imported, skipped because the source changed, not translated, formatting changed, not in the file, kept. Studio API `GET /supertext/elements/{type}/{id}/export` and `POST /supertext/import`.
 - Tested on PHP 8.5 as well as 8.4 (Pimcore 2026.3 supports both; the bundle already allowed 8.5).
 - French and Italian interface (and German where it was missing): the Studio button, dialog, permission label and the messages from the server (Supertext errors, permissions, missing parent page) follow the user's Studio language.
 - First version for Pimcore 2026 with Pimcore Studio. All Supertext API calls go through the official Supertext PHP SDK, shipped inside the bundle (nothing extra to install).
@@ -24,6 +25,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Supertext SDK 0.5.0. Since 0.4.0, a target language without a mapping or an exact Supertext code uses its obvious default instead of being *not mapped*: a bare `de`/`en`/`fr`/`it`/`pt` → `de-DE`/`en-US`/`fr-FR`/`it-IT`/`pt-PT`, `zh_CN` → `zh-Hans`, `es_ES` → `es`. Languages without a default (`de_LI`, `en_IE`, `fr_BE`) still need a mapping.
 - **Languages are no longer guessed.** A Pimcore language whose code is a Supertext code (`de_CH` → `de-CH`, `fr_CH`, `es`, `zh_Hans`, apart from case and `_`/`-`) is used as it is; every other language needs a Supertext code in the language mapping (`supertext_translation.languages.<language>.code`, e.g. `en: { code: en-GB }`). There are no default regions any more: they were wrong for most languages (Supertext wants `es`, `sl`, `nl` without region, `zh-Hans` instead of `zh-CN`, and rejects bare `de`). The same mapping gives the source language (bare: `en-GB` → `en`). An unmapped language shows *No Supertext language* in the dialog and can't be selected; translating into it reports *has no Supertext language yet* and sends nothing. `supertext:check` lists the mapping and marks unmapped languages.
 - A formal/informal tone configured for a language Supertext offers none for (English, Swiss German, Romansh, Albanian, Serbian) is no longer sent: the dialog marks the language *No formal/informal tone*, and translating into it reports *Supertext offers no formal or informal tone for this language*.
 - `POST /supertext/settings/test` returns the API key check (`{ok, check, message}`, always HTTP 200 for administrators).

@@ -82,4 +82,30 @@ q "select data from documents_editables e join documents d on d.id=e.documentId 
 q "select data from documents_editables e join documents d on d.id=e.documentId where d.path='/it-ch/' and e.name='cta'" | grep > /dev/null 'Ordini una scatola di degustazione'
 test "$(q "select count(*) from documents_translations")" = 6
 test "$(q "select count(*) from notes where type='supertext'")" = 9
+
+# Export for translation → Import translation through the Studio API (the article, German).
+jar=$(mktemp)
+curl -sf -c "$jar" -b "$jar" -H 'Content-Type: application/json' \
+	-d "{\"username\":\"$DEMO_EDITOR_EMAIL\",\"password\":\"$DEMO_EDITOR_PASSWORD\"}" $B/pimcore-studio/api/login > /dev/null
+article=$(q "select id from objects where path='/Articles/' and \`key\`='swiss-chocolate'")
+xliff=$(mktemp)
+headers=$(curl -sf -b "$jar" -D - -o "$xliff" "$B/pimcore-studio/api/supertext/elements/data-object/$article/export?source=en&targets=de_CH&format=xliff&overwrite=1")
+grep -qi '^content-type: application/x-xliff+xml' <<< "$headers"
+grep -qi "^content-disposition: attachment; filename=\"pimcore-object-$article-de_CH.xlf\"" <<< "$headers"
+grep -qF "original=\"object:$article:en:de_CH\"" "$xliff"
+python3 - "$xliff" <<'PY'
+import re, sys
+path = sys.argv[1]
+xliff = open(path, encoding='utf-8').read()
+xliff, n = re.subn(r'(<trans-unit id="([^"]+)" datatype="plaintext"[^>]*>\s*<source>.*?</source>)', r'\1<target>Aus der Datei</target>', xliff, count=1, flags=re.S)
+assert n == 1, 'no plain-text unit'
+open(path, 'w', encoding='utf-8').write(xliff)
+PY
+result=$(curl -sf -b "$jar" -H 'X-Supertext-Request: 1' -F "file=@$xliff" -F overwrite=1 $B/pimcore-studio/api/supertext/import)
+echo "$result"
+grep -qF '"imported":1' <<< "$result"
+grep -qF '"error":null' <<< "$result"
+test "$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" -F "file=@$xliff" $B/pimcore-studio/api/supertext/import)" = 400
+test "$(q "select count(*) from notes where type='supertext'")" = 10
+rm -f "$jar" "$xliff"
 echo "Demo check passed"

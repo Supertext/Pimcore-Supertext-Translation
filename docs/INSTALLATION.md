@@ -112,14 +112,15 @@ Each Pimcore language needs a Supertext language. Supertext accepts exactly thes
 | All others, without region | `bg`, `cs`, `da`, `el`, `es`, `fi`, `hr`, `hu`, `ja`, `ko`, `nb`, `nl`, `pl`, `rm`, `ru`, `sk`, `sl`, `sq`, `sv`, `tr` |
 
 - A Pimcore language whose code **is** one of these codes (apart from upper/lower case and `_`/`-`) is used as it is: `de_CH` → `de-CH`, `fr_CH` → `fr-CH`, `es` → `es`.
-- **Every other language needs a mapping** in the bundle configuration, `languages.<language>.code` (see [Settings](#settings)), e.g. `en: { code: en-GB }`, `de: { code: de-CH }`, `zh_Hans: { code: zh-Hans }`, `no: { code: nb }`. The bundle never guesses a region: Pimcore's `de` could mean Germany or Switzerland, and Supertext rejects bare `de`, `es_ES` or `zh_CN`. An unmapped language is shown as *No Supertext language* in the translate dialog and can't be selected; `supertext:check` lists it as *not mapped*.
+- Otherwise, as a target, its **obvious default** (since Supertext SDK 0.4.0): a bare `de`, `en`, `fr`, `it`, `pt` → `de-DE`, `en-US`, `fr-FR`, `it-IT`, `pt-PT`; `zh`, `zh_CN` → `zh-Hans`, `zh_TW` → `zh-Hant`; a region of a language Supertext offers without one → the bare code (`es_ES` → `es`, `nl_NL` → `nl`). A mapping overrides it (`de: { code: de-CH }`).
+- **Every other language needs a mapping** in the bundle configuration, `languages.<language>.code` (see [Settings](#settings)), e.g. `de_LI: { code: de-CH }`, `en_IE: { code: en-GB }`, `fr_BE: { code: fr-FR }`, `no: { code: nb }`. Nothing else is guessed. An unmapped language is shown as *No Supertext language* in the translate dialog and can't be selected; `supertext:check` lists it as *not mapped*.
 - The **source language** is sent without region, from the same mapping (`en` mapped to `en-GB` is sent as `en`; `en_GB` → `en`). The 28 source languages are the languages above without region, plus `gsw` (Swiss German).
 - A mapped code is sent as it is, even one this list doesn't have yet (a language Supertext adds later works right away).
 - Formal/informal (`politeness`) isn't offered for English, Swiss German, Romansh, Albanian and Serbian. A tone set for one of them is not dropped silently: the dialog marks the language *No formal/informal tone*, and translating into it fails with *Supertext offers no formal or informal tone for this language* until you remove the tone.
 
 ## Interface languages
 
-The bundle's Studio screens (the *Translate with Supertext* button and dialog, the permission label and the error messages in the dialog) are available in English, German, French and Italian. They follow each user's Pimcore Studio interface language: the *Language* in the user's profile (user menu → *My profile*; administrators can set it for other users in the user management). Other languages show the English texts. The command-line output, the log and the notes and version comments the bundle writes stay English.
+The bundle's Studio screens (the *Translate with Supertext* button and dialog with *Export for translation* and *Import translation*, the permission label and the error messages in the dialog) are available in English, German, French and Italian. They follow each user's Pimcore Studio interface language: the *Language* in the user's profile (user menu → *My profile*; administrators can set it for other users in the user management). Other languages show the English texts. The command-line output, the log and the notes and version comments the bundle writes stay English.
 
 ## Permissions
 
@@ -131,7 +132,17 @@ In **System → User & Roles**, give editors' roles (or users):
 
 ![The role "Editors" in Pimcore Studio: the permissions Documents, Objects, Notes & Events, Classes and Translate with Supertext](images/role-permission.png)
 
+**Export for translation** needs the same permission and *View* on the document or object. **Import translation** needs the permission and, for each document or object in the file, the same rights as translating: *Save* on the existing translation or *Create* on the parent page's translation, or the object language's *Edit* restriction (`lEdit`); elements the user may not edit are reported and left alone.
+
 The dialog shows languages the user may not edit as *Not allowed*: for data objects, the workspace's *Edit* language restrictions (`lEdit`) apply; for documents, the user needs *Save* on an existing translation or *Create* on the parent page's translation. Administrators may do everything.
+
+## Translation files (Export for translation, Import translation)
+
+Nothing to configure: the dialog's **Export for translation** and **Import translation** use the same languages, language mapping, permissions and write-back as *Translate with Supertext*, without calling the Supertext API.
+
+- **Upload size:** at most 10 MB per file. PHP's `upload_max_filesize` and `post_max_size` must allow that (their defaults, 2 MB and 8 MB, are lower; raise them to `10M`/`12M` if editors import large files). The upload is read in memory; nothing is stored besides PHP's own temporary upload file.
+- In the file, languages are written with their Supertext code from the mapping; a language without one is written with its Pimcore code (`xx_YY` → `xx-YY`), so it never blocks the export.
+- The Studio API endpoints are `GET /pimcore-studio/api/supertext/elements/{document|data-object}/{id}/export?targets=de_CH&format=xliff|html` and `POST /pimcore-studio/api/supertext/import` (multipart field `file`, `includeChanged=1`, `overwrite=1`; header `X-Supertext-Request: 1`).
 
 ## Settings
 

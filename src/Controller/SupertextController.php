@@ -12,15 +12,19 @@ use Pimcore\Model\Document\PageSnippet;
 use Pimcore\Model\User;
 use Pimcore\Tool;
 use Psr\Log\LoggerInterface;
+use Supertext\PimcoreTranslationBundle\Api\FileExchange;
 use Supertext\PimcoreTranslationBundle\Api\InstallationReports;
 use Supertext\PimcoreTranslationBundle\Api\LanguageCodes;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
 use Supertext\PimcoreTranslationBundle\Reporting\Reporting;
 use Supertext\PimcoreTranslationBundle\Service\DocumentTranslator;
 use Supertext\PimcoreTranslationBundle\Service\ObjectTranslator;
+use Supertext\PimcoreTranslationBundle\Service\TranslationFileElements;
 use Supertext\PimcoreTranslationBundle\Settings;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 
@@ -29,6 +33,8 @@ use Symfony\Component\Serializer\SerializerInterface;
  *
  *   GET  /supertext/elements/{type}/{id}             languages and their state for the translate dialog
  *   POST /supertext/elements/{type}/{id}/translate   {source?, targets[], overwrite}
+ *   GET  /supertext/elements/{type}/{id}/export      ?targets=de,fr&format=xliff|html&source=&overwrite=  (Export for translation: the file)
+ *   POST /supertext/import                           multipart file, includeChanged, overwrite (Import translation)
  *   GET  /supertext/settings                         API key status and check, version reports, API address, languages
  *   POST /supertext/settings/test                    checks the API key, cost-free (admins)
  *
@@ -121,6 +127,83 @@ final class SupertextController extends AbstractApiController
         }
 
         return new JsonResponse(['results' => $results]);
+    }
+
+    /** Export for translation: the element's texts as an XLIFF 1.2 or HTML file (nothing is stored). */
+    #[Route('/supertext/elements/{type}/{id}/export', name: 'supertext_translation_export', requirements: ['type' => 'document|data-object', 'id' => '\d+'], methods: ['GET'])]
+    public function export(string $type, int $id, Request $request): Response
+    {
+        $user = $this->user();
+        if (!$user->isAllowed(Settings::PERMISSION)) {
+            return $this->error('You are not allowed to translate with Supertext.', 403, 'not-allowed');
+        }
+        $targets = array_values(array_filter(array_map('trim', explode(',', (string) $request->query->get('targets', '')))));
+        $exchange = new FileExchange(new TranslationFileElements($this->documents, $this->objects, $user), $this->settings->mapping());
+
+        try {
+            $file = $exchange->export(
+                $type === 'document' ? FileExchange::DOCUMENT : FileExchange::OBJECT,
+                $id,
+                (string) $request->query->get('source', ''),
+                $targets,
+                (string) $request->query->get('format', FileExchange::XLIFF),
+                \in_array((string) $request->query->get('overwrite', ''), ['1', 'true'], true),
+            );
+        } catch (SupertextException $e) {
+            return new JsonResponse(['error' => $e->getMessage()] + $e->toArray(), $e->key === 'element-not-found' ? 404 : 400);
+        }
+
+        return new Response($file['content'], 200, [
+            'Content-Type' => $file['contentType'],
+            'Content-Disposition' => 'attachment; filename="' . $file['fileName'] . '"',
+            'Cache-Control' => 'no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
+     * Import translation: one XLIFF or HTML file (multipart field "file", at most 10 MB), read in
+     * memory and written into the documents and objects it was exported from. The header
+     * X-Supertext-Request is required, so another site can't submit a form here.
+     */
+    #[Route('/supertext/import', name: 'supertext_translation_import', methods: ['POST'])]
+    public function import(Request $request): JsonResponse
+    {
+        $user = $this->user();
+        if (!$user->isAllowed(Settings::PERMISSION)) {
+            return $this->error('You are not allowed to translate with Supertext.', 403, 'not-allowed');
+        }
+        if ($request->headers->get('X-Supertext-Request') !== '1') {
+            return $this->error('Missing X-Supertext-Request header.', 400);
+        }
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile || $file->getError() === \UPLOAD_ERR_NO_FILE) {
+            return $this->error('Choose a file to import.', 400, 'file-no-file');
+        }
+        if (\in_array($file->getError(), [\UPLOAD_ERR_INI_SIZE, \UPLOAD_ERR_FORM_SIZE], true) || $file->getSize() > FileExchange::MAX_UPLOAD_BYTES) {
+            return $this->error('The file is too large (at most 10 MB).', 400, 'file-too-large');
+        }
+        if (!$file->isValid()) {
+            return $this->error('The file could not be uploaded.', 400, 'file-invalid-file');
+        }
+        $this->reporting->later(InstallationReports::ON_REQUEST);
+        $exchange = new FileExchange(new TranslationFileElements($this->documents, $this->objects, $user), $this->settings->mapping());
+
+        try {
+            $jobs = $exchange->import(
+                (string) file_get_contents($file->getPathname(), false, null, 0, FileExchange::MAX_UPLOAD_BYTES + 1),
+                $request->request->getBoolean('includeChanged'),
+                $request->request->getBoolean('overwrite'),
+            );
+        } catch (SupertextException $e) {
+            return new JsonResponse(['error' => $e->getMessage()] + $e->toArray(), 400);
+        } catch (\Throwable $e) {
+            $this->logger->error('Supertext translation file import failed: ' . $e->getMessage(), ['exception' => $e]);
+
+            return $this->error($e->getMessage(), 500);
+        }
+
+        return new JsonResponse(['jobs' => array_map(static fn (array $job): array => ['type' => $job['type'] === FileExchange::OBJECT ? 'data-object' : $job['type']] + $job, $jobs)]);
     }
 
     #[Route('/supertext/settings', name: 'supertext_translation_settings', methods: ['GET'])]
