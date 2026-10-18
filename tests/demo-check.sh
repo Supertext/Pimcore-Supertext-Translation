@@ -57,6 +57,13 @@ curl -sf -c "$jar" -b "$jar" -H 'Content-Type: application/json' \
 settings=$(curl -sf -b "$jar" $B/pimcore-studio/api/supertext/settings)
 grep -qF '"reports":true' <<< "$settings"
 grep -qF '"code":"de-CH"' <<< "$settings"
+grep -qF '"saved":"en-GB"' <<< "$settings"   # the demo's mapping, on Supertext → Settings
+# Supertext → Settings: save the mapping (the same values), refuse codes Supertext doesn't offer.
+mapping='{"languages":{"en":{"code":"en-GB","politeness":""},"de_CH":{"code":"de-CH","politeness":"more"},"fr_CH":{"code":"fr-CH","politeness":"more"},"it_CH":{"code":"it-CH","politeness":"more"}}}'
+saved=$(curl -sf -b "$jar" -H 'Content-Type: application/json' -H 'X-Supertext-Request: 1' -d "$mapping" $B/pimcore-studio/api/supertext/settings/languages)
+grep -qF '"saved":"it-CH"' <<< "$saved"
+test "$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" -H 'Content-Type: application/json' -H 'X-Supertext-Request: 1' -d '{"languages":{"de_CH":{"code":"de-LI"}}}' $B/pimcore-studio/api/supertext/settings/languages)" = 400
+test "$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" -H 'Content-Type: application/json' -d "$mapping" $B/pimcore-studio/api/supertext/settings/languages)" = 400
 for _ in $(seq 10); do
 	state=$(q "select data from settings_store where id='reporter' and scope='supertext_translation'")
 	grep -qF '"reportedVersions":"' <<< "$state" && break
@@ -87,6 +94,7 @@ test "$(q "select count(*) from notes where type='supertext'")" = 9
 jar=$(mktemp)
 curl -sf -c "$jar" -b "$jar" -H 'Content-Type: application/json' \
 	-d "{\"username\":\"$DEMO_EDITOR_EMAIL\",\"password\":\"$DEMO_EDITOR_PASSWORD\"}" $B/pimcore-studio/api/login > /dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" -H 'Content-Type: application/json' -H 'X-Supertext-Request: 1' -d '{"languages":{}}' $B/pimcore-studio/api/supertext/settings/languages)" = 403
 article=$(q "select id from objects where path='/Articles/' and \`key\`='swiss-chocolate'")
 xliff=$(mktemp)
 headers=$(curl -sf -b "$jar" -D - -o "$xliff" "$B/pimcore-studio/api/supertext/elements/data-object/$article/export?source=en&targets=de_CH&format=xliff&overwrite=1")

@@ -41,7 +41,7 @@ final class CheckCommand extends Command
             $tone = $this->settings->politeness($language);
             if ($code === null) {
                 ++$unmapped;
-                $output->writeln(sprintf('  %s → <comment>not mapped</comment>: set supertext_translation.languages.%s.code', $language, $language));
+                $output->writeln(sprintf('  %s → <comment>not mapped</comment>: choose its Supertext language in Pimcore Studio, Supertext → Settings (or set supertext_translation.languages.%s.code)', $language, $language));
                 continue;
             }
             $line = sprintf('  %s → %s', $language, $code) . ($tone !== '' ? " ({$tone})" : '');

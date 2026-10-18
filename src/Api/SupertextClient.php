@@ -44,7 +44,7 @@ final class SupertextClient
         SdkException::MISSING_API_KEY => ['no-api-key', 'No Supertext API key is configured.'],
         SdkException::AUTHENTICATION_FAILURE => ['auth-failed', 'Authentication failed. Please check the Supertext API key.'],
         SdkException::INVALID_LANGUAGE_PAIR => ['invalid-language-pair', 'Supertext does not support this language pair (%s → %s).'],
-        SdkException::UNSUPPORTED_LANGUAGE => ['unsupported-language', 'The language %s has no Supertext language yet. Ask your administrator to map it (supertext_translation.languages.<language>.code).'],
+        SdkException::UNSUPPORTED_LANGUAGE => ['unsupported-language', 'The language %s has no Supertext language yet. Ask your administrator to choose one in Pimcore Studio: Supertext → Settings.'],
         SdkException::UNSUPPORTED_FEATURE => ['unsupported-feature', 'Supertext offers no formal or informal tone for this language. Remove the politeness setting for it (supertext_translation.languages.<language>.politeness).'],
         SdkException::NOT_FOUND => ['not-found', 'The requested Supertext resource was not found.'],
         SdkException::PAYLOAD_TOO_LARGE => ['too-large', 'The content is too large for Supertext to translate in one go.'],

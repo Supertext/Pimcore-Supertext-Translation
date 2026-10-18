@@ -163,3 +163,52 @@ export const importFile = async (file: File, options: { includeChanged: boolean,
   }
   return (await response.json() as { jobs: ImportedJob[] }).jobs
 }
+
+/** One Pimcore language on Supertext → Settings. */
+export interface LanguageRow {
+  language: string
+  name: string
+  /** The code chosen on the screen ('' while none is saved). */
+  saved: string
+  /** The code set in the bundle configuration, which wins over the screen; null if none. */
+  override: string | null
+  /** Exact match or Supertext's default; null: the language needs a choice. */
+  suggested: string | null
+  /** What a translation sends; null: can't be translated into. */
+  code: string | null
+  politeness: string
+  politenessOverride: boolean
+  politenessSupported: boolean | null
+}
+
+/** One of Supertext's target languages (the SDK's Languages::targetOptions()). */
+export interface TargetOption {
+  code: string
+  name: string
+  localName: string
+  politeness: boolean
+}
+
+export interface SettingsInfo {
+  version: string
+  releaseUrl: string | null
+  configured: boolean
+  status: SupertextStatus | null
+  apiKeySource: string
+  apiUrl: string
+  timeout: number
+  languages: LanguageRow[]
+  targets: TargetOption[]
+  signupUrl: string
+  apiKeyUrl: string
+  isAdmin: boolean
+}
+
+export const loadSettings = async (): Promise<SettingsInfo> => await call<SettingsInfo>('/settings')
+
+export const saveLanguages = async (languages: Record<string, { code: string, politeness: string }>): Promise<SettingsInfo> =>
+  await call<SettingsInfo>('/settings/languages', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Supertext-Request': '1' },
+    body: JSON.stringify({ languages })
+  })

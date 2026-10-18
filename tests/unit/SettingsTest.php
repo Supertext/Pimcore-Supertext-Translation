@@ -4,6 +4,7 @@ namespace Supertext\PimcoreTranslationBundle\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
+use Supertext\PimcoreTranslationBundle\LanguageStore;
 use Supertext\PimcoreTranslationBundle\Settings;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -58,6 +59,32 @@ final class SettingsTest extends TestCase
 
         $this->expectException(SupertextException::class);
         $settings->languageCode('fr_BE');
+    }
+
+    public function testTheSettingsScreenWithTheConfigurationOverridingIt(): void
+    {
+        $store = new class extends LanguageStore {
+            public function load(): array
+            {
+                return [
+                    'en' => ['code' => 'en-GB', 'politeness' => ''],   // the configuration's en-US wins
+                    'it' => ['code' => 'it-CH', 'politeness' => 'more'],
+                    'fr_BE' => ['code' => 'fr-FR', 'politeness' => 'less'],
+                ];
+            }
+        };
+        $settings = new Settings([
+            'environment' => 'live', 'api_url' => '', 'timeout' => 180, 'poll_interval' => 2.0, 'version_reports' => true,
+            'languages' => ['en' => ['code' => 'en-US', 'politeness' => '']],
+            'object_field_types' => [], 'document_editable_types' => [],
+        ], $this->createMock(HttpClientInterface::class), $store);
+
+        self::assertSame('en-US', $settings->languageCode('en'));
+        self::assertSame('it-CH', $settings->languageCode('it'));
+        self::assertSame('more', $settings->politeness('it'));
+        self::assertSame('fr-FR', $settings->languageCode('fr_BE'), 'a language without default, mapped on the screen');
+        self::assertSame('fr', $settings->sourceCode('fr_BE'));
+        self::assertSame('de-DE', $settings->languageCode('de'), 'neither: the SDK default');
     }
 
     public function testToneOnlyWhereSupertextOffersIt(): void

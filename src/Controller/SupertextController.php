@@ -15,10 +15,13 @@ use Psr\Log\LoggerInterface;
 use Supertext\PimcoreTranslationBundle\Api\FileExchange;
 use Supertext\PimcoreTranslationBundle\Api\InstallationReports;
 use Supertext\PimcoreTranslationBundle\Api\LanguageCodes;
+use Supertext\PimcoreTranslationBundle\Api\LanguageMapping;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
 use Supertext\PimcoreTranslationBundle\Reporting\Reporting;
 use Supertext\PimcoreTranslationBundle\Service\DocumentTranslator;
 use Supertext\PimcoreTranslationBundle\Service\ObjectTranslator;
+use Supertext\PimcoreTranslationBundle\LanguageStore;
+use Supertext\PimcoreTranslationBundle\Sdk\V1\Languages;
 use Supertext\PimcoreTranslationBundle\Service\TranslationFileElements;
 use Supertext\PimcoreTranslationBundle\Settings;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -35,7 +38,8 @@ use Symfony\Component\Serializer\SerializerInterface;
  *   POST /supertext/elements/{type}/{id}/translate   {source?, targets[], overwrite}
  *   GET  /supertext/elements/{type}/{id}/export      ?targets=de,fr&format=xliff|html&source=&overwrite=  (Export for translation: the file)
  *   POST /supertext/import                           multipart file, includeChanged, overwrite (Import translation)
- *   GET  /supertext/settings                         API key status and check, version reports, API address, languages
+ *   GET  /supertext/settings                         API key status and check, version reports, API address, languages and Supertext's targets
+ *   POST /supertext/settings/languages               {languages: {<language>: {code, politeness}}} the language mapping (admins)
  *   POST /supertext/settings/test                    checks the API key, cost-free (admins)
  *
  * {type} is "document" or "data-object". Every endpoint queues the Commando Center's onRequest for
@@ -51,6 +55,7 @@ final class SupertextController extends AbstractApiController
         private readonly DocumentTranslator $documents,
         private readonly LoggerInterface $logger,
         private readonly Reporting $reporting,
+        private readonly LanguageStore $languageStore,
     ) {
         parent::__construct($serializer);
     }
@@ -214,30 +219,90 @@ final class SupertextController extends AbstractApiController
             return $this->error('You are not allowed to see the Supertext settings.', 403);
         }
         $this->reporting->later(InstallationReports::ON_REQUEST);
+
+        return new JsonResponse($this->settingsData($user));
+    }
+
+    /**
+     * Saves the language mapping of the *Supertext → Settings* screen: one Supertext code (or none:
+     * the default applies) and tone per Pimcore language, checked against Supertext's targets.
+     */
+    #[Route('/supertext/settings/languages', name: 'supertext_translation_save_languages', methods: ['POST'])]
+    public function saveLanguages(Request $request): JsonResponse
+    {
+        $user = $this->user();
+        if (!$user->isAdmin()) {
+            return $this->error('Only administrators can change the Supertext settings.', 403, 'admin-only');
+        }
+        if ($request->headers->get('X-Supertext-Request') !== '1') {
+            return $this->error('Missing X-Supertext-Request header.', 400);
+        }
+        $payload = json_decode($request->getContent() ?: '[]', true);
+        $input = \is_array($payload) && \is_array($payload['languages'] ?? null) ? $payload['languages'] : null;
+        if ($input === null) {
+            return $this->error('Missing languages.', 400);
+        }
+        try {
+            $languages = LanguageMapping::validate($input, Tool::getValidLanguages());
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 400, 'invalid-mapping');
+        }
+        $this->languageStore->save($languages);
+        $this->reporting->later(InstallationReports::ON_REQUEST);
+
+        return new JsonResponse($this->settingsData($user));
+    }
+
+    /**
+     * What the settings screen shows: status, and per Pimcore language its row of the mapping.
+     *
+     * @return array<string, mixed>
+     */
+    private function settingsData(User $user): array
+    {
+        $mapping = $this->settings->languageMapping();
+        $display = $user->getLanguage() ?: 'en';
         $languages = [];
         foreach (Tool::getValidLanguages() as $language) {
-            $code = $this->settings->languageCodeOrNull($language);
-            $languages[] = [
-                'language' => $language,
-                'name' => \Locale::getDisplayName($language, $user->getLanguage() ?: 'en'),
-                'code' => $code,
-                'politeness' => $this->settings->politeness($language),
-                'politenessSupported' => $code === null ? null : LanguageCodes::supportsPoliteness($code),
+            $row = $mapping->row($language);
+            $languages[] = $row + [
+                'name' => \Locale::getDisplayName($language, $display),
+                'politenessSupported' => $row['code'] === null ? null : LanguageCodes::supportsPoliteness($row['code']),
             ];
         }
+        $targets = array_map(static fn (array $target): array => [
+            'code' => $target['code'],
+            'name' => $target['name'],
+            'localName' => self::displayName($target['code'], $display, $target['name']),
+            'politeness' => $target['politeness'],
+        ], Languages::targetOptions());
 
-        return new JsonResponse([
+        return [
             'version' => Settings::version(),
+            'releaseUrl' => Settings::releaseUrl(Settings::version()),
             'configured' => $this->settings->apiKey() !== '',
             'status' => $this->status(),
             'apiKeySource' => $this->settings->apiKeySource(),
             'apiUrl' => $this->settings->baseUrl(),
             'timeout' => $this->settings->timeout(),
             'languages' => $languages,
+            'targets' => $targets,
             'signupUrl' => Settings::SIGNUP_URL,
             'apiKeyUrl' => Settings::API_KEY_URL,
             'isAdmin' => $user->isAdmin(),
-        ]);
+        ];
+    }
+
+    /** A Supertext code's name in the user's language (PHP intl), else Supertext's English name. */
+    private static function displayName(string $code, string $display, string $fallback): string
+    {
+        // gsw-u-sd-chzh: intl doesn't name the subdivision; keep Supertext's "Swiss German (Zurich)".
+        if (str_contains($code, '-u-')) {
+            return $fallback;
+        }
+        $name = \Locale::getDisplayName(str_replace('-', '_', $code), $display);
+
+        return \is_string($name) && $name !== '' && $name !== str_replace('-', '_', $code) ? $name : $fallback;
     }
 
     #[Route('/supertext/settings/test', name: 'supertext_translation_test', methods: ['POST'])]

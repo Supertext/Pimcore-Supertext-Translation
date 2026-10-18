@@ -6,6 +6,7 @@ namespace Supertext\PimcoreTranslationBundle;
 
 use Supertext\PimcoreTranslationBundle\Api\CallableTransport;
 use Supertext\PimcoreTranslationBundle\Api\LanguageCodes;
+use Supertext\PimcoreTranslationBundle\Api\LanguageMapping;
 use Supertext\PimcoreTranslationBundle\Api\SupertextClient;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
 use Supertext\PimcoreTranslationBundle\PluginHealth\InstallationReporter;
@@ -61,6 +62,7 @@ final class Settings
         #[Autowire(param: 'supertext_translation.config')]
         private readonly array $config,
         private readonly HttpClientInterface $httpClient,
+        private readonly ?LanguageStore $languageStore = null,
     ) {
     }
 
@@ -98,26 +100,28 @@ final class Settings
     }
 
     /**
-     * The language mapping: Pimcore language → Supertext code (`languages.<language>.code`, non-blank only).
+     * The language mapping: the *Supertext → Settings* screen (Pimcore's settings store), overridden by the
+     * bundle configuration's `languages.<language>.code` / `.politeness` where they are set.
+     */
+    public function languageMapping(): LanguageMapping
+    {
+        return new LanguageMapping((array) ($this->config['languages'] ?? []), $this->languageStore?->load() ?? []);
+    }
+
+    /**
+     * Pimcore language → Supertext code (the screen's choices and the configuration, non-blank only).
+     * Languages in neither use the SDK's exact match or default.
      *
      * @return array<string, string>
      */
     public function mapping(): array
     {
-        $mapping = [];
-        foreach ((array) $this->config['languages'] as $language => $options) {
-            $code = trim((string) ($options['code'] ?? ''));
-            if ($code !== '') {
-                $mapping[(string) $language] = $code;
-            }
-        }
-
-        return $mapping;
+        return $this->languageMapping()->mapping();
     }
 
     /**
      * Supertext target code for a Pimcore language: the mapping, else the Pimcore code if it is a Supertext
-     * code (de_CH -> de-CH, es). No default regions.
+     * code (de_CH -> de-CH, es), else the SDK's default (de -> de-DE, zh_CN -> zh-Hans).
      *
      * @throws SupertextException key `unsupported-language`
      */
@@ -126,7 +130,7 @@ final class Settings
         return LanguageCodes::target($language, $this->mapping());
     }
 
-    /** The target code, or null while the language isn't mapped. */
+    /** The target code, or null for a language without mapping, exact match or default. */
     public function languageCodeOrNull(string $language): ?string
     {
         return LanguageCodes::targetOrNull($language, $this->mapping());
@@ -142,12 +146,10 @@ final class Settings
         return LanguageCodes::source($language, $this->mapping());
     }
 
-    /** The configured tone: "more", "less" or "" (default). */
+    /** The tone: the configuration's, else the settings screen's; "more", "less" or "" (default). */
     public function politeness(string $language): string
     {
-        $value = (string) ($this->config['languages'][$language]['politeness'] ?? '');
-
-        return \in_array($value, ['more', 'less'], true) ? $value : '';
+        return $this->languageMapping()->politeness($language);
     }
 
     /**
