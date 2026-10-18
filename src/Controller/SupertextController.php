@@ -302,7 +302,7 @@ final class SupertextController extends AbstractApiController
         }
         $name = \Locale::getDisplayName(str_replace('-', '_', $code), $display);
 
-        return \is_string($name) && $name !== '' && $name !== str_replace('-', '_', $code) ? $name : $fallback;
+        return \is_string($name) && $name !== str_replace('-', '_', $code) ? $name : $fallback;
     }
 
     #[Route('/supertext/settings/test', name: 'supertext_translation_test', methods: ['POST'])]
