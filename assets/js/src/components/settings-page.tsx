@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Alert, Button, Content, Header, Select, Space, Text } from '@pimcore/studio-ui-bundle/components'
+import { Alert, Button, Checkbox, Content, Header, Select, Space, Text } from '@pimcore/studio-ui-bundle/components'
 import { useTranslation } from '@pimcore/studio-ui-bundle/app'
 import { type LanguageRow, type ServerMessage, type SettingsInfo, loadSettings, saveLanguages } from '../api'
 
-interface Choice { code: string, politeness: string }
+interface Choice { code: string, politeness: string, review: boolean }
 
 const styles = `
 .supertext-settings table { border-collapse: collapse; }
@@ -16,7 +16,8 @@ const styles = `
 /** What the screen shows for a row: the saved code, else the suggestion (exact match or Supertext's default), else none. */
 const initialChoice = (row: LanguageRow): Choice => ({
   code: row.saved !== '' ? row.saved : (row.suggested ?? ''),
-  politeness: row.politeness
+  politeness: row.politeness,
+  review: row.review
 })
 
 /**
@@ -120,6 +121,7 @@ export const SettingsPage = (): React.JSX.Element => {
         <div>
           <Header position="content" title={ t('supertext.settings.languages') } />
           <Text>{ t('supertext.settings.languages-help') }</Text>
+          <div><Text type="secondary">{ t(info.reviewAvailable ? 'supertext.settings.review-help' : 'supertext.settings.review-off') }</Text></div>
         </div>
 
         { !editable && <Alert message={ t('supertext.settings.admin-only') } showIcon type="info" /> }
@@ -130,6 +132,7 @@ export const SettingsPage = (): React.JSX.Element => {
               <th scope="col">{ t('supertext.settings.language') }</th>
               <th scope="col">{ t('supertext.settings.supertext-language') }</th>
               <th scope="col">{ t('supertext.settings.politeness') }</th>
+              <th scope="col">{ t('supertext.settings.review') }</th>
             </tr>
           </thead>
           <tbody>
@@ -167,6 +170,15 @@ export const SettingsPage = (): React.JSX.Element => {
                         />
                         )
                       : <Text type="secondary">{ code !== '' ? t('supertext.settings.no-politeness') : '' }</Text> }
+                  </td>
+                  <td>
+                    <Checkbox
+                      aria-label={ `${t('supertext.settings.review')}: ${row.name}` }
+                      checked={ info.reviewAvailable && (row.reviewOverride ? row.review : choice.review) }
+                      disabled={ !editable || !info.reviewAvailable || row.reviewOverride }
+                      onChange={ (e) => { change(row.language, { review: e.target.checked }) } }
+                    />
+                    { row.reviewOverride && <div><Text type="secondary">{ t('supertext.settings.override', { language: row.language }) }</Text></div> }
                   </td>
                 </tr>
               )

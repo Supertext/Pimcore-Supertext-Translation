@@ -33,6 +33,7 @@ final class CheckCommand extends Command
         $release = Settings::releaseUrl($version);
         $output->writeln('Supertext Translation for Pimcore ' . $version . ($release ? " ({$release})" : ''));
         $output->writeln('API address: ' . $this->settings->baseUrl());
+        $output->writeln('Review service (Translation review): ' . ($this->settings->reviewUrl() !== '' ? $this->settings->reviewUrl() : 'off (review_url is empty)'));
 
         $output->writeln('Languages (Pimcore → Supertext):');
         $unmapped = 0;
@@ -44,7 +45,8 @@ final class CheckCommand extends Command
                 $output->writeln(sprintf('  %s → <comment>not mapped</comment>: choose its Supertext language in Pimcore Studio, Supertext → Settings (or set supertext_translation.languages.%s.code)', $language, $language));
                 continue;
             }
-            $line = sprintf('  %s → %s', $language, $code) . ($tone !== '' ? " ({$tone})" : '');
+            $line = sprintf('  %s → %s', $language, $code) . ($tone !== '' ? " ({$tone})" : '')
+                . ($this->settings->review($language) ? ', Translation review' : '');
             if ($tone !== '' && LanguageCodes::supportsPoliteness($code) === false) {
                 $line .= ' <comment>Supertext offers no formal/informal tone for this language: remove its politeness</comment>';
             }

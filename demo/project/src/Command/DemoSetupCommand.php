@@ -55,10 +55,10 @@ final class DemoSetupCommand extends Command
             return;
         }
         $store->save([
-            'en' => ['code' => 'en-GB', 'politeness' => ''],
-            'de_CH' => ['code' => 'de-CH', 'politeness' => 'more'],
-            'fr_CH' => ['code' => 'fr-CH', 'politeness' => 'more'],
-            'it_CH' => ['code' => 'it-CH', 'politeness' => 'more'],
+            'en' => ['code' => 'en-GB', 'politeness' => '', 'review' => false],
+            'de_CH' => ['code' => 'de-CH', 'politeness' => 'more', 'review' => false],
+            'fr_CH' => ['code' => 'fr-CH', 'politeness' => 'more', 'review' => false],
+            'it_CH' => ['code' => 'it-CH', 'politeness' => 'more', 'review' => false],
         ]);
         $this->log('Supertext language mapping saved (Supertext → Settings)');
     }

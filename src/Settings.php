@@ -16,7 +16,7 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * Settings (bundle config + SUPERTEXT_API_KEY / SUPERTEXT_API_URL / SUPERTEXT_VERSION_REPORTS) and the API client.
+ * Settings (bundle config + SUPERTEXT_API_KEY / SUPERTEXT_API_URL / SUPERTEXT_REVIEW_URL / SUPERTEXT_VERSION_REPORTS) and the API client.
  */
 final class Settings
 {
@@ -92,6 +92,23 @@ final class Settings
         $url = (string) (self::env('SUPERTEXT_API_URL') ?: $this->config['api_url']);
 
         return SupertextClient::baseUrlFor((string) $this->config['environment'], $url);
+    }
+
+    /**
+     * The review service for languages with *Translation review* on: SUPERTEXT_REVIEW_URL if set (non-empty),
+     * else `review_url` (default Supertext's review service); '' = review off for every language.
+     */
+    public function reviewUrl(): string
+    {
+        $env = trim((string) self::env('SUPERTEXT_REVIEW_URL'));
+
+        return $env !== '' ? $env : trim((string) ($this->config['review_url'] ?? SupertextClient::REVIEW_URL));
+    }
+
+    /** Whether translations into a Pimcore language go through the review service. */
+    public function review(string $language): bool
+    {
+        return $this->reviewUrl() !== '' && $this->languageMapping()->review($language);
     }
 
     public function timeout(): int
@@ -227,8 +244,18 @@ final class Settings
         return new CallableTransport($this->send());
     }
 
+    /** The API client; `->forReview($this->review($language))` for a translation into $language. */
     public function client(): SupertextClient
     {
-        return new SupertextClient($this->apiKey(), $this->baseUrl(), $this->send(), $this->timeout(), (float) $this->config['poll_interval']);
+        return new SupertextClient(
+            $this->apiKey(),
+            $this->baseUrl(),
+            $this->send(),
+            $this->timeout(),
+            (float) $this->config['poll_interval'],
+            // The bundle's version too (as in the reports), so Supertext and the review service see which release calls.
+            userAgent: SupertextClient::USER_AGENT . '/' . self::version(),
+            reviewUrl: $this->reviewUrl(),
+        );
     }
 }

@@ -18,7 +18,7 @@ class LanguageStore
     /** @var array<string, mixed>|null */
     private ?array $cache = null;
 
-    /** @return array<string, mixed> language => {code, politeness}; empty while nothing is saved or the store can't be read */
+    /** @return array<string, mixed> language => {code, politeness, review}; empty while nothing is saved or the store can't be read */
     public function load(): array
     {
         if ($this->cache !== null) {
@@ -35,7 +35,7 @@ class LanguageStore
         return $this->cache = \is_array($data) ? $data : [];
     }
 
-    /** @param array<string, array{code: string, politeness: string}> $languages */
+    /** @param array<string, array{code: string, politeness: string, review: bool}> $languages */
     public function save(array $languages): void
     {
         SettingsStore::set(self::ID, (string) json_encode($languages, JSON_UNESCAPED_SLASHES), SettingsStore::TYPE_STRING, self::SCOPE);

@@ -13,15 +13,16 @@ use Supertext\PimcoreTranslationBundle\Sdk\V1\Languages;
 /**
  * The language mapping as administrators set it on the *Supertext* settings screen (one select per
  * Pimcore language, stored in Pimcore's settings store) combined with the bundle configuration
- * (`supertext_translation.languages.<language>.code` / `.politeness`), which wins where it is set.
+ * (`supertext_translation.languages.<language>.code` / `.politeness` / `.review`), which wins where it is set.
  * No Pimcore classes: unit-tested on its own.
  *
- * Stored form: `{"<pimcore language>": {"code": "<Supertext target code or ''>", "politeness": "more"|"less"|""}}`.
+ * Stored form: `{"<pimcore language>": {"code": "<Supertext target code or ''>", "politeness": "more"|"less"|"", "review": bool}}`
+ * (`review`: *Translation review*, translations into the language go through Supertext's review service).
  */
 final class LanguageMapping
 {
     /**
-     * @param array<string, array{code?: mixed, politeness?: mixed}|mixed> $config the bundle configuration's `languages`
+     * @param array<string, array{code?: mixed, politeness?: mixed, review?: mixed}|mixed> $config the bundle configuration's `languages`
      * @param array<string, mixed>                                          $stored what the settings screen saved
      */
     public function __construct(
@@ -60,6 +61,20 @@ final class LanguageMapping
         return \in_array($value, ['more', 'less'], true) ? $value : '';
     }
 
+    /** *Translation review* set in the bundle configuration (`review: true|false`), or null. */
+    public function configReview(string $language): ?bool
+    {
+        $value = $this->entry($this->config, $language)['review'] ?? null;
+
+        return \is_bool($value) ? $value : null;
+    }
+
+    /** *Translation review* for a target language: the configuration's, else the screen's (off by default). */
+    public function review(string $language): bool
+    {
+        return $this->configReview($language) ?? (($this->entry($this->stored, $language)['review'] ?? false) === true);
+    }
+
     /**
      * Pimcore language → Supertext code: the screen's choices, overridden by the configuration (non-blank only).
      * Languages in neither use the SDK's exact match or default (`Languages::target()`).
@@ -87,12 +102,12 @@ final class LanguageMapping
 
     /**
      * What the settings screen saves: only Pimcore languages that exist, only Supertext's target codes,
-     * a tone only where the target offers one.
+     * a tone only where the target offers one, *Translation review* as a boolean.
      *
-     * @param array<mixed>  $input     language => {code, politeness}
+     * @param array<mixed>  $input     language => {code, politeness, review}
      * @param list<string>  $languages the Pimcore languages
      *
-     * @return array<string, array{code: string, politeness: string}>
+     * @return array<string, array{code: string, politeness: string, review: bool}>
      *
      * @throws \InvalidArgumentException for an unknown language or a code Supertext doesn't offer
      */
@@ -117,7 +132,7 @@ final class LanguageMapping
             if (!\in_array($politeness, ['more', 'less'], true) || $code === '' || Languages::supportsPoliteness($code) !== true) {
                 $politeness = '';
             }
-            $out[$language] = ['code' => $code, 'politeness' => $politeness];
+            $out[$language] = ['code' => $code, 'politeness' => $politeness, 'review' => ($row['review'] ?? false) === true];
         }
 
         return $out;
@@ -126,7 +141,7 @@ final class LanguageMapping
     /**
      * One row of the settings screen.
      *
-     * @return array{language: string, saved: string, override: string|null, suggested: string|null, code: string|null, politeness: string, politenessOverride: bool}
+     * @return array{language: string, saved: string, override: string|null, suggested: string|null, code: string|null, politeness: string, politenessOverride: bool, review: bool, reviewOverride: bool}
      */
     public function row(string $language): array
     {
@@ -138,6 +153,8 @@ final class LanguageMapping
             'code' => LanguageCodes::targetOrNull($language, $this->mapping()),
             'politeness' => $this->politeness($language),
             'politenessOverride' => $this->configPoliteness($language) !== null,
+            'review' => $this->review($language),
+            'reviewOverride' => $this->configReview($language) !== null,
         ];
     }
 

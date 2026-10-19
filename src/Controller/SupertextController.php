@@ -39,7 +39,7 @@ use Symfony\Component\Serializer\SerializerInterface;
  *   GET  /supertext/elements/{type}/{id}/export      ?targets=de,fr&format=xliff|html&source=&overwrite=  (Export for translation: the file)
  *   POST /supertext/import                           multipart file, includeChanged, overwrite (Import translation)
  *   GET  /supertext/settings                         API key status and check, version reports, API address, languages and Supertext's targets
- *   POST /supertext/settings/languages               {languages: {<language>: {code, politeness}}} the language mapping (admins)
+ *   POST /supertext/settings/languages               {languages: {<language>: {code, politeness, review}}} the language mapping (admins)
  *   POST /supertext/settings/test                    checks the API key, cost-free (admins)
  *
  * {type} is "document" or "data-object". Every endpoint queues the Commando Center's onRequest for
@@ -225,7 +225,7 @@ final class SupertextController extends AbstractApiController
 
     /**
      * Saves the language mapping of the *Supertext → Settings* screen: one Supertext code (or none:
-     * the default applies) and tone per Pimcore language, checked against Supertext's targets.
+     * the default applies), tone and *Translation review* per Pimcore language, checked against Supertext's targets.
      */
     #[Route('/supertext/settings/languages', name: 'supertext_translation_save_languages', methods: ['POST'])]
     public function saveLanguages(Request $request): JsonResponse
@@ -285,6 +285,8 @@ final class SupertextController extends AbstractApiController
             'apiKeySource' => $this->settings->apiKeySource(),
             'apiUrl' => $this->settings->baseUrl(),
             'timeout' => $this->settings->timeout(),
+            // '' = Translation review is off for every language (review_url / SUPERTEXT_REVIEW_URL).
+            'reviewAvailable' => $this->settings->reviewUrl() !== '',
             'languages' => $languages,
             'targets' => $targets,
             'signupUrl' => Settings::SIGNUP_URL,

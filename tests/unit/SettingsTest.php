@@ -3,6 +3,7 @@
 namespace Supertext\PimcoreTranslationBundle\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Supertext\PimcoreTranslationBundle\Api\SupertextClient;
 use Supertext\PimcoreTranslationBundle\Api\SupertextException;
 use Supertext\PimcoreTranslationBundle\LanguageStore;
 use Supertext\PimcoreTranslationBundle\Settings;
@@ -16,7 +17,7 @@ if (!interface_exists(HttpClientInterface::class)) {
 /** The bundle configuration: language mapping, tone, "Send version information to Supertext". */
 final class SettingsTest extends TestCase
 {
-    private const ENV = ['SUPERTEXT_VERSION_REPORTS', 'SUPERTEXT_REPORT_URL'];
+    private const ENV = ['SUPERTEXT_VERSION_REPORTS', 'SUPERTEXT_REPORT_URL', 'SUPERTEXT_REVIEW_URL'];
 
     protected function tearDown(): void
     {
@@ -120,5 +121,20 @@ final class SettingsTest extends TestCase
         self::assertNull($this->settings()->reportUrl());
         $_ENV['SUPERTEXT_REPORT_URL'] = ' http://127.0.0.1:9/report ';
         self::assertSame('http://127.0.0.1:9/report', $this->settings()->reportUrl());
+    }
+
+    public function testTranslationReviewDefaultsToSupertextsReviewService(): void
+    {
+        $settings = $this->settings(['review_url' => SupertextClient::REVIEW_URL, 'languages' => ['de_CH' => ['code' => '', 'politeness' => '', 'review' => true], 'fr_CH' => ['code' => '', 'politeness' => '', 'review' => null]]]);
+        self::assertSame(SupertextClient::REVIEW_URL, $settings->reviewUrl());
+        self::assertTrue($settings->review('de_CH'));
+        self::assertFalse($settings->review('fr_CH'), 'off by default');
+
+        $_SERVER['SUPERTEXT_REVIEW_URL'] = 'http://127.0.0.1:3000/v1/';
+        self::assertSame('http://127.0.0.1:3000/v1/', $settings->reviewUrl(), 'SUPERTEXT_REVIEW_URL wins');
+
+        unset($_SERVER['SUPERTEXT_REVIEW_URL']);
+        $off = $this->settings(['review_url' => '', 'languages' => ['de_CH' => ['code' => '', 'politeness' => '', 'review' => true]]]);
+        self::assertFalse($off->review('de_CH'), "review_url '': review off for every language");
     }
 }

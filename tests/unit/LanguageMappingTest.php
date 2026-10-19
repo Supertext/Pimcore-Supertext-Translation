@@ -55,15 +55,31 @@ final class LanguageMappingTest extends TestCase
     {
         $saved = LanguageMapping::validate([
             'en' => ['code' => 'en-gb', 'politeness' => 'more'],
-            'de_CH' => ['code' => 'de-CH', 'politeness' => 'more'],
-            'fr' => ['code' => '', 'politeness' => 'less'],
+            'de_CH' => ['code' => 'de-CH', 'politeness' => 'more', 'review' => true],
+            'fr' => ['code' => '', 'politeness' => 'less', 'review' => 'yes'],
         ], ['en', 'de_CH', 'fr']);
 
         self::assertSame([
-            'en' => ['code' => 'en-GB', 'politeness' => ''],          // Supertext's spelling; English has no tone
-            'de_CH' => ['code' => 'de-CH', 'politeness' => 'more'],
-            'fr' => ['code' => '', 'politeness' => ''],               // no code chosen: the default, no tone
+            'en' => ['code' => 'en-GB', 'politeness' => '', 'review' => false],          // Supertext's spelling; English has no tone
+            'de_CH' => ['code' => 'de-CH', 'politeness' => 'more', 'review' => true],
+            'fr' => ['code' => '', 'politeness' => '', 'review' => false],               // no code chosen: the default, no tone; review only as true
         ], $saved);
+    }
+
+    public function testTranslationReviewIsOffByDefaultAndTheConfigurationWins(): void
+    {
+        $mapping = new LanguageMapping(
+            ['fr_CH' => ['review' => false], 'it_CH' => ['review' => true], 'en' => ['review' => null]],
+            ['de_CH' => ['code' => 'de-CH', 'review' => true], 'fr_CH' => ['code' => 'fr-CH', 'review' => true], 'en' => ['code' => 'en-GB', 'review' => true]],
+        );
+
+        self::assertTrue($mapping->review('de_CH'));
+        self::assertFalse($mapping->review('fr_CH'), 'the configuration turns it off');
+        self::assertTrue($mapping->review('it_CH'), 'the configuration turns it on');
+        self::assertTrue($mapping->review('en'), 'null in the configuration: the screen decides');
+        self::assertFalse($mapping->review('es'), 'off by default');
+        self::assertSame(['review' => false, 'reviewOverride' => true], array_intersect_key($mapping->row('fr_CH'), ['review' => 0, 'reviewOverride' => 0]));
+        self::assertSame(['review' => true, 'reviewOverride' => false], array_intersect_key($mapping->row('de_CH'), ['review' => 0, 'reviewOverride' => 0]));
     }
 
     public function testValidateRefusesUnknownCodes(): void

@@ -50,7 +50,8 @@ final class SegmentTranslator
             return [];
         }
         $this->assertConfigured();
-        $client = $this->client ?? $this->settings->client();
+        // Languages with Translation review go through Supertext's review service (same key and protocol).
+        $client = ($this->client ?? $this->settings->client())->forReview($this->settings->review($targetLanguage));
 
         $target = $this->settings->languageCode($targetLanguage);
         $source = $this->settings->sourceCode($sourceLanguage);

@@ -179,6 +179,10 @@ export interface LanguageRow {
   politeness: string
   politenessOverride: boolean
   politenessSupported: boolean | null
+  /** Translation review: translations into this language go through Supertext's review service. */
+  review: boolean
+  /** Set in the bundle configuration (`languages.<language>.review`), which wins. */
+  reviewOverride: boolean
 }
 
 /** One of Supertext's target languages (the SDK's Languages::targetOptions()). */
@@ -197,6 +201,8 @@ export interface SettingsInfo {
   apiKeySource: string
   apiUrl: string
   timeout: number
+  /** false: review_url is empty, Translation review is off for every language. */
+  reviewAvailable: boolean
   languages: LanguageRow[]
   targets: TargetOption[]
   signupUrl: string
@@ -206,7 +212,7 @@ export interface SettingsInfo {
 
 export const loadSettings = async (): Promise<SettingsInfo> => await call<SettingsInfo>('/settings')
 
-export const saveLanguages = async (languages: Record<string, { code: string, politeness: string }>): Promise<SettingsInfo> =>
+export const saveLanguages = async (languages: Record<string, { code: string, politeness: string, review: boolean }>): Promise<SettingsInfo> =>
   await call<SettingsInfo>('/settings/languages', {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Supertext-Request': '1' },

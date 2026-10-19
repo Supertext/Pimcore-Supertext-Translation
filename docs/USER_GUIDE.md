@@ -31,6 +31,8 @@ The translation contains the translated title, description, navigation name and 
 
 Change what you like, as if you had translated by hand, then **Save & publish**. Until you publish, visitors don't see the translation.
 
+- **Translation review:** if your administrator turned on *Translation review* for a language, reviewers (your colleagues or Supertext linguists) check and correct the translations on the website. Their corrections come into Pimcore the next time you translate the document or object into that language: after a review, translate it again with *Overwrite existing translations*. Texts reviewed once keep their corrected wording in later translations.
+
 ## Translate again or update a translation
 
 Languages that already have a translation of the page show **Already translated**, or **Translated with Supertext on** *date* if Supertext made it, and are not ticked. If you tick one, the dialog shows an extra option:
